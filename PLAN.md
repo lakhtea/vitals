@@ -400,3 +400,16 @@ decisions logged, anything blocked.
   Visual check of the overview done (screenshot reviewed). Blocked on
   Lakhte: M3 library (then dogfooding + self-measurement panel), M10
   account/deploy, M11 push/publish/sign-off.
+- 2026-10-08 ~23:40 ET (review round, three agents) — Correctness review of
+  the day's work, bugs-only. Seven confirmed and fixed, each with a
+  regression case that was red first: DateTime scalar accepted any
+  Date.parse input (host-zone-dependent filters) -> strict ISO 8601 with
+  offset; sessions(limit: -1) meant "unlimited" in SQLite -> error; ingest
+  accepted "/path?token" -> rejected; demo rate-limit key unbounded ->
+  capped; DashboardView swallowed query errors -> status line; wrong-site
+  flash via Apollo previousData after site switch -> view keeps its own
+  last-shown site; site select nested in label -> explicit htmlFor. CI
+  simulated job by job locally (no failing step); measure-render.ts
+  imported an undeclared package -> fixed; TOUR/chapters 05/06/99 paths
+  corrected. Final: lint, typecheck, 31 unit, 18 story, 8 e2e, bundle
+  check green; tree clean.
