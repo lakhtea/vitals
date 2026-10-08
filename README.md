@@ -116,7 +116,7 @@ CLI without `datetime(col/1000, 'unixepoch')`.
 
 | What | Before | After |
 | ---- | ------ | ----- |
-| `pages { metrics }` SQL queries over N pages | TBD (N+1) | TBD (DataLoader) |
+| `site { pages { metrics } }` SQL statements, N = 10 seeded pages ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | 12 = 2 + N (naive) | TBD (DataLoader) |
 | Sessions table render, stress seed | TBD | TBD (virtualized) |
 | First-load JS, dashboard route | TBD | budget enforced in CI |
 | This dashboard's own p75 LCP / CLS / INP | — | TBD (self-instrumented) |

@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:seed": "tsx src/db/seed.ts",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "measure:queries": "tsx scripts/measure-query-count.ts"
   },
   "dependencies": {
     "@apollo/client": "^4.2.10",
