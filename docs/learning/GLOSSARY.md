@@ -89,6 +89,48 @@ Ours is idempotent.
 An operation that produces the same end state whether it runs once or many times.
 Re-running the seed must not duplicate rows; retrying an ingest request must not double-count an event.
 
+**ON CONFLICT DO NOTHING.**
+An insert clause that silently skips a row whose primary key or unique index already exists.
+Combined with ids chosen by the sender, it is how both the seed and the ingest endpoint stay idempotent.
+
+**Foreign key.**
+A column that must match a primary key in another table, such as `pageviews.session_id` -> `sessions.id`.
+SQLite only enforces them when `PRAGMA foreign_keys = ON` is set per connection.
+
+**Index.**
+A sorted lookup structure on one or more columns that makes filtering and grouping on them fast.
+A unique index additionally forbids two rows with the same values, which is how the metric-event dedupe key is enforced.
+
+**Transaction.**
+A group of statements that either all apply or none do.
+The seed wraps its inserts in one so a crash halfway cannot leave a partially seeded database.
+
+**drizzle-kit.**
+Drizzle's command-line tool.
+`npm run db:generate` diffs `src/db/schema.ts` against the last snapshot in `drizzle/meta/` and writes the SQL that moves the database forward.
+
+**Snapshot (drizzle-kit).**
+A JSON description of the schema at the time a migration was generated, stored in `drizzle/meta/`.
+The next generate run diffs the current schema against it, so it must be committed with its migration.
+
+**Aggregate.**
+A value computed over many rows, such as a count or a percentile per path.
+GraphQL types like `Page` are aggregates rather than stored rows, which is why they have no `id`.
+
+## Synthetic data
+
+**PRNG (pseudo-random number generator).**
+A function that produces a sequence that looks random but is fully determined by its seed number.
+The seed uses one so the demo data is identical on every machine and every run.
+
+**Log-normal distribution.**
+A distribution whose logarithm is normally distributed, giving a cluster near the median and a long right tail.
+Page timings in the field have this shape, so the seed samples timings from it.
+
+**Mixture.**
+Sampling from one of several distributions chosen by a weighted coin.
+The seed's CLS is a mixture: mostly near zero, sometimes moderate, occasionally an outlier.
+
 ## Next.js and React
 
 **App Router.**

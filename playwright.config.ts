@@ -1,9 +1,12 @@
+// E2E harness: boots a freshly seeded app on its own database file so browser
+// tests never depend on, or disturb, local dev data.
 import { defineConfig, devices } from "@playwright/test";
 
-/**
- * One E2E path (per the production bar): home page renders seeded applications
- * fetched through the real GraphQL endpoint.
- */
+const E2E_DB_PATH = ".data/e2e.db";
+// Delete the previous run's database (and SQLite's WAL sidecars) so the seed
+// always produces the same, current data set.
+const resetE2eDb = `node -e "for (const f of ['${E2E_DB_PATH}','${E2E_DB_PATH}-wal','${E2E_DB_PATH}-shm']) require('node:fs').rmSync(f, { force: true })"`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -21,10 +24,10 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npm run db:seed && npm run dev",
+    command: `${resetE2eDb} && npm run db:seed && npm run dev`,
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    env: { PIPELINE_DB_PATH: ".data/e2e.db" },
+    env: { VITALS_DB_PATH: E2E_DB_PATH },
     timeout: 120_000,
   },
 });

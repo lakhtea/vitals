@@ -1,59 +1,67 @@
+// Executes real GraphQL documents against the schema with an in-memory
+// database: the cheapest test that proves resolvers, SQL, and types agree.
+import { count } from "drizzle-orm";
 import { graphql } from "graphql";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeDb, type Db } from "../db";
+import { metricEvents, pageviews } from "../db/schema";
 import { seed } from "../db/seed";
 import type { Context } from "./context";
 import { schema } from "./schema";
 
 let db: Db;
 
-function exec(source: string, variableValues?: Record<string, unknown>) {
+const exec = (source: string, variableValues?: Record<string, unknown>) => {
   const contextValue: Context = { db };
   return graphql({ schema, source, contextValue, variableValues });
+};
+
+interface PageRow {
+  path: string;
+  pageviewCount: number;
+  eventCount: number;
 }
 
 beforeEach(() => {
   db = makeDb(":memory:");
 });
 
-describe("Query.applications", () => {
-  it("returns seeded applications, most recently updated first", async () => {
+describe("Query.sites and Site.pages", () => {
+  it("lists every seeded path with counts that add up to the stored rows", async () => {
     seed(db);
-    const result = await exec(`{ applications { company stage } }`);
+
+    const result = await exec(`{
+      sites {
+        id
+        name
+        pages { path pageviewCount eventCount }
+      }
+    }`);
 
     expect(result.errors).toBeUndefined();
-    const apps = result.data?.applications as Array<{ company: string; stage: string }>;
-    expect(apps).toHaveLength(4);
-    expect(apps.map((a) => a.company)).toContain("Netflix");
+    const sites = result.data?.sites as Array<{ id: string; name: string; pages: PageRow[] }>;
+    expect(sites).toHaveLength(1);
+
+    const pages = sites[0].pages;
+    const totalPageviews = db.select({ n: count() }).from(pageviews).get()?.n;
+    const totalEvents = db.select({ n: count() }).from(metricEvents).get()?.n;
+
+    expect(pages.length).toBeGreaterThanOrEqual(8);
+    expect(pages.reduce((sum, page) => sum + page.pageviewCount, 0)).toBe(totalPageviews);
+    expect(pages.reduce((sum, page) => sum + page.eventCount, 0)).toBe(totalEvents);
+    expect(pages.map((page) => page.path)).toContain("/");
   });
 
-  it("returns an empty list on a fresh database", async () => {
-    const result = await exec(`{ applications { id } }`);
-    expect(result.errors).toBeUndefined();
-    expect(result.data?.applications).toEqual([]);
-  });
-});
+  it("returns pages for one site through the root query, most viewed first", async () => {
+    seed(db);
 
-describe("Mutation.createApplication", () => {
-  it("creates and returns an application with defaults applied", async () => {
-    const result = await exec(
-      `mutation Create($company: String!, $role: String!) {
-        createApplication(company: $company, role: $role) {
-          id
-          company
-          role
-          stage
-        }
-      }`,
-      { company: "Vercel", role: "DX Engineer" },
-    );
+    const result = await exec(`query Pages($siteId: ID!) { pages(siteId: $siteId) { path pageviewCount } }`, {
+      siteId: "demo",
+    });
 
     expect(result.errors).toBeUndefined();
-    const created = result.data?.createApplication as { company: string; stage: string };
-    expect(created.company).toBe("Vercel");
-    expect(created.stage).toBe("saved");
-
-    const check = await exec(`{ applications { company } }`);
-    expect((check.data?.applications as unknown[]).length).toBe(1);
+    const pages = result.data?.pages as PageRow[];
+    const counts = pages.map((page) => page.pageviewCount);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
   });
 });

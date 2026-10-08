@@ -144,11 +144,11 @@ not — replacing it is M1.
 
 ### M1 — Domain model swap (tracker → RUM)
 Replace the leftover tracker domain entirely. Nothing tracker-shaped survives.
-- [ ] Drizzle schema: `sites` (even if v1 seeds exactly one), `sessions` (id, site, startedAt, device class, connection type, user agent family), `pageviews` (session, path, timestamp), `metric_events` (pageview, metric name, value, rating, timestamp)
-- [ ] Idempotent synthetic seed: ~50 sessions across ~10 paths with realistic distributions (log-normal-ish LCP, mostly-zero CLS with outliers, INP spread), device/connection mix; re-running must not duplicate
-- [ ] Pothos types + root queries for the new domain (sites, pages with basic aggregates); delete tracker types/resolvers
-- [ ] Rewrite the walking-skeleton UI table to list pages with event counts; update unit + e2e tests to the new domain
-- [ ] Chapter 01: the data model — why these four tables and not fewer, how Drizzle maps them, what a migration is, how the seed fakes realistic traffic
+- [x] Drizzle schema: `sites` (even if v1 seeds exactly one), `sessions` (id, site, startedAt, device class, connection type, user agent family), `pageviews` (session, path, timestamp), `metric_events` (pageview, metric name, value, rating, timestamp)
+- [x] Idempotent synthetic seed: ~50 sessions across ~10 paths with realistic distributions (log-normal-ish LCP, mostly-zero CLS with outliers, INP spread), device/connection mix; re-running must not duplicate
+- [x] Pothos types + root queries for the new domain (sites, pages with basic aggregates); delete tracker types/resolvers
+- [x] Rewrite the walking-skeleton UI table to list pages with event counts; update unit + e2e tests to the new domain
+- [x] Chapter 01: the data model — why these four tables and not fewer, how Drizzle maps them, what a migration is, how the seed fakes realistic traffic
 - DoD: no application/contact/stage code anywhere (`grep -ri` for the old
   nouns comes back empty outside git history); seed idempotent (run twice,
   verify); all tests green on the new domain; chapter 01 done.
@@ -309,3 +309,17 @@ decisions logged, anything blocked.
   GLOSSARY.md. Created docs/NEEDS-LAKHTE.md as the single owner-task list.
   TESTING_RULES.md (Lakhte's) committed. Session hard stop: 01:50 Eastern,
   2026-10-08. Next: M1.
+- 2026-10-07 (late evening, Claude Code) — M1 complete. Tracker domain
+  deleted; four-table RUM schema (sites, sessions, pageviews, metric_events)
+  with drizzle-kit migrations applied at open (`drizzle/0000_rum_domain.sql`),
+  foreign keys on, dedupe unique index on (pageview, name, metric_id).
+  Deterministic seeded-PRNG synthetic traffic (50 sessions / 10 paths,
+  log-normal timings, CLS mixture, INP on ~70% of pageviews, Safari/Firefox
+  report connection "unknown"); idempotent via sender-chosen ids + ON
+  CONFLICT DO NOTHING, proven by test (seed twice, counts equal). GraphQL:
+  Site, Page (aggregate), `sites`/`site`/`pages`. Env var renamed
+  VITALS_DB_PATH; Playwright deletes its DB before seeding. Tests per
+  TESTING_RULES: 5 unit (threshold edges inclusive, seed idempotent + ratings
+  consistent, page counts add up, root ordering) + 1 e2e. Decisions logged:
+  migrations, idempotency mechanism, thresholds from web-vitals, epoch-ms
+  timestamps. Chapter 01 written; TOUR + glossary updated. Next: M2.

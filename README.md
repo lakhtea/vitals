@@ -65,6 +65,41 @@ seedable with synthetic traffic and `:memory:` in tests. Tradeoff: no
 Postgres/ClickHouse story for real event volume; acknowledged openly — this is
 a kit, not a SaaS.
 
+### drizzle-kit migrations over inline `CREATE TABLE IF NOT EXISTS`
+The skeleton created tables inline, which works until the second version of
+a table: `IF NOT EXISTS` never alters an existing one. Options: keep inline
+DDL and hand-write `ALTER`s; `drizzle-kit push` (diffs straight into the
+database, no history); generated migrations applied at startup. Choice:
+generated migrations in `drizzle/`, applied by `migrate()` whenever a
+database is opened, including `:memory:` in tests. Tradeoff: the migrations
+folder must ship with the app (a packaging detail for M10), and every schema
+change is two committed artifacts (SQL + snapshot) instead of one.
+
+### Sender-chosen ids + `ON CONFLICT DO NOTHING` for idempotency
+Both the seed and (from M2) the ingest endpoint must be safe to run twice.
+Options: "skip if the table is not empty" (seed only, cannot coexist with
+real data); server-side lookup-then-insert (racy, two round trips); let the
+sender mint session/pageview ids and rely on a unique index for events.
+Choice: the last. Tradeoff: the server trusts the sender's ids within a
+site, which is acceptable because v1 has no auth boundary to protect, and it
+is exactly how `web-vitals` expects `metric.id` to be used.
+
+### Thresholds imported from `web-vitals`, never hand-copied
+The good / needs-improvement / poor cut-offs are published by web.dev and
+shipped as constants by the `web-vitals` package. Importing them keeps the
+dashboard's ratings identical to the library's and makes a threshold change
+a dependency bump, not a code audit. Tradeoff: a browser-oriented package is
+now a server dependency; its threshold modules are pure constants and were
+verified to import cleanly in Node.
+
+### Integer epoch-millisecond timestamps
+SQLite has no date type. Options: ISO 8601 text (readable, slower to
+compare, 24 bytes), Unix seconds (loses sub-second precision the browser
+has), epoch milliseconds (what `Date.now()` and `performance.timeOrigin`
+already produce). Choice: epoch ms in integer columns; GraphQL exposes ISO
+strings for humans. Tradeoff: raw rows are not human-readable in the sqlite3
+CLI without `datetime(col/1000, 'unixepoch')`.
+
 ## Metrics (measured here, on this repo — never estimated)
 
 | What | Before | After |
@@ -84,7 +119,11 @@ npm run dev       # http://localhost:3000 · GraphiQL at /api/graphql
 npm run test      # unit tests (Vitest, in-memory SQLite)
 npm run test:e2e  # Playwright, end-to-end paths
 npm run typecheck && npm run lint
+
+npm run db:generate   # after editing src/db/schema.ts: writes the next migration
 ```
+
+The database lives at `.data/vitals.db` (override with `VITALS_DB_PATH`).
 
 ## Scope (v1 guardrails)
 

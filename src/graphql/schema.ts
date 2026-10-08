@@ -1,71 +1,51 @@
-import { desc, eq } from "drizzle-orm";
-import { applications, STAGES, type Stage } from "../db/schema";
+// The GraphQL schema: object types, root queries, and the data access behind
+// them. builder.toSchema() at the bottom is where Pothos emits a graphql-js schema.
+import { eq } from "drizzle-orm";
+import { type PageAggregate, listPagesForSite } from "@/db/queries/pages";
+import { type SiteRow, sites } from "@/db/schema";
 import { builder } from "./builder";
 
-type ApplicationRow = typeof applications.$inferSelect;
-
-const StageEnum = builder.enumType("Stage", {
-  values: STAGES,
+// A Page is an aggregate over pageviews, not a stored row, so it has no id of
+// its own; Apollo keeps it nested under its parent Site in the cache.
+const PageType = builder.objectRef<PageAggregate>("Page").implement({
+  description: "Traffic for one URL path, aggregated over its pageviews.",
+  fields: (t) => ({
+    path: t.exposeString("path"),
+    pageviewCount: t.exposeInt("pageviewCount"),
+    eventCount: t.exposeInt("eventCount", { description: "Metric events recorded on this path." }),
+  }),
 });
 
-const ApplicationType = builder.objectRef<ApplicationRow>("Application").implement({
+const SiteType = builder.objectRef<SiteRow>("Site").implement({
+  description: "A property being measured. v1 seeds exactly one.",
   fields: (t) => ({
     id: t.exposeID("id"),
-    company: t.exposeString("company"),
-    role: t.exposeString("role"),
-    url: t.exposeString("url", { nullable: true }),
-    stage: t.field({ type: StageEnum, resolve: (app) => app.stage }),
-    notes: t.exposeString("notes", { nullable: true }),
-    followUpOn: t.exposeString("followUpOn", { nullable: true }),
-    createdAt: t.exposeString("createdAt"),
-    updatedAt: t.exposeString("updatedAt"),
-
-    // SESSION TODO (DataLoader lesson): add `contacts` here.
-    // 1. Implement naively (one query per application) and capture query counts.
-    // 2. Convert to a dataloader via @pothos/plugin-dataloader.
-    // 3. Record the before/after query counts in README "Metrics".
+    name: t.exposeString("name"),
+    createdAt: t.string({ resolve: (site) => new Date(site.createdAt).toISOString() }),
+    pages: t.field({
+      type: [PageType],
+      resolve: (site, _args, ctx) => listPagesForSite({ db: ctx.db, siteId: site.id }),
+    }),
   }),
 });
 
 builder.queryFields((t) => ({
-  applications: t.field({
-    type: [ApplicationType],
-    resolve: (_root, _args, ctx) =>
-      ctx.db.select().from(applications).orderBy(desc(applications.updatedAt)).all(),
+  sites: t.field({
+    type: [SiteType],
+    resolve: (_root, _args, ctx) => ctx.db.select().from(sites).orderBy(sites.name).all(),
   }),
-  application: t.field({
-    type: ApplicationType,
+  site: t.field({
+    type: SiteType,
     nullable: true,
-    args: { id: t.arg.int({ required: true }) },
+    args: { id: t.arg.id({ required: true }) },
     resolve: (_root, args, ctx) =>
-      ctx.db.select().from(applications).where(eq(applications.id, args.id)).get() ?? null,
+      ctx.db.select().from(sites).where(eq(sites.id, String(args.id))).get() ?? null,
   }),
-}));
-
-builder.mutationFields((t) => ({
-  createApplication: t.field({
-    type: ApplicationType,
-    args: {
-      company: t.arg.string({ required: true }),
-      role: t.arg.string({ required: true }),
-      url: t.arg.string(),
-      stage: t.arg({ type: StageEnum }),
-    },
-    resolve: (_root, args, ctx) =>
-      ctx.db
-        .insert(applications)
-        .values({
-          company: args.company,
-          role: args.role,
-          url: args.url ?? null,
-          stage: (args.stage as Stage | null) ?? "saved",
-        })
-        .returning()
-        .get(),
+  pages: t.field({
+    type: [PageType],
+    args: { siteId: t.arg.id({ required: true }) },
+    resolve: (_root, args, ctx) => listPagesForSite({ db: ctx.db, siteId: String(args.siteId) }),
   }),
-
-  // SESSION TODO: updateApplicationStage, setFollowUp, addContact — one per
-  // build session, each with a unit test, per PORTFOLIO_DIRECTION.md guardrails.
 }));
 
 export const schema = builder.toSchema();
