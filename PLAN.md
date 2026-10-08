@@ -136,9 +136,9 @@ not — replacing it is M1.
 ## Milestones
 
 ### M0 — Baseline verification (every fresh clone / first session)
-- [ ] `npm install` clean; current (tracker-flavored) seed and tests still green: `typecheck`, `lint`, `test`, `test:e2e`
-- [ ] CI workflow runs the same four checks; fix any drift between CI and local
-- [ ] Bootstrap the teaching layer: `docs/learning/00-the-skeleton.md` explaining the EXISTING walking skeleton file by file (this is Lakhte's orientation chapter — why Pothos, what Yoga does, how the Apollo table gets its data, how the tests run), plus the first `docs/TOUR.md` and `docs/learning/GLOSSARY.md`
+- [x] `npm install` clean; current (tracker-flavored) seed and tests still green: `typecheck`, `lint`, `test`, `test:e2e`
+- [x] CI workflow runs the same four checks; fix any drift between CI and local
+- [x] Bootstrap the teaching layer: `docs/learning/00-the-skeleton.md` explaining the EXISTING walking skeleton file by file (this is Lakhte's orientation chapter — why Pothos, what Yoga does, how the Apollo table gets its data, how the tests run), plus the first `docs/TOUR.md` and `docs/learning/GLOSSARY.md`
 - DoD: all checks green; the three teaching files exist and cover everything
   currently in the repo.
 
@@ -274,6 +274,8 @@ frameworks).
 
 ## Blocked / needs Lakhte
 
+The canonical, always-current list is `docs/NEEDS-LAKHTE.md`. Summary:
+
 - M3 implementation (his build — brief will be ready first).
 - M10 hosting account (Vercel or similar) when M10 starts.
 - M11 GitHub repo creation + push, npm publish of the library, and sign-off
@@ -294,3 +296,16 @@ decisions logged, anything blocked.
   file headers, template chapter), pairing contract added (M3 browser library
   is Lakhte-built, Claude Code coaches and reviews only — his choice), M0
   gains the orientation chapter on the existing skeleton. Next: M0.
+- 2026-10-07 (evening, Claude Code) — M0 complete. Fresh `npm ci` on npm 11
+  blocked better-sqlite3's native build (npm's new allow-scripts gate), fixed
+  by committing `allowScripts` in package.json; Node 24 has no prebuilt
+  better-sqlite3 binary so it compiles from source (noted in
+  docs/NEEDS-LAKHTE.md). Playwright browser build reinstalled to match
+  @playwright/test 1.62.1. All four checks green locally; CI runs the same
+  scripts (added `.nvmrc`/`engines` = Node 22 to match CI). vitest.config
+  renamed to `.mts` to silence Vite's ESM-in-CJS warning. Added `web-vitals`
+  (source of truth for rating thresholds) and `zod` (boundary validation)
+  ahead of M1/M2. Teaching layer bootstrapped: chapter 00, TOUR.md,
+  GLOSSARY.md. Created docs/NEEDS-LAKHTE.md as the single owner-task list.
+  TESTING_RULES.md (Lakhte's) committed. Session hard stop: 01:50 Eastern,
+  2026-10-08. Next: M1.

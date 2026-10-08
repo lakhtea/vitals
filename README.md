@@ -94,6 +94,13 @@ thresholds). **Deliberately excluded:** error tracking, session replay, alerts,
 multi-tenant auth, sampling strategies beyond a simple rate. Ship small,
 polished, instrumented with itself.
 
+## Docs
+
+- [docs/TOUR.md](./docs/TOUR.md) - the ten-minute codebase tour
+- [docs/learning/](./docs/learning/) - one teaching chapter per milestone, plus the glossary
+- [TESTING_RULES.md](./TESTING_RULES.md) - how we decide what deserves a test
+- [docs/NEEDS-LAKHTE.md](./docs/NEEDS-LAKHTE.md) - everything that needs the owner's accounts or sign-off
+
 ## Roadmap
 
 See [PLAN.md](./PLAN.md) — the working milestone plan this repo is built from.
