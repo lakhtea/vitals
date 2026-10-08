@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pipeline
 
-## Getting Started
+<!-- After first push: swap <USER> for your GitHub handle -->
+![CI](https://github.com/<USER>/pipeline/actions/workflows/ci.yml/badge.svg)
 
-First, run the development server:
+A job-search tracker I built — and use daily — while running my own search.
+GraphQL end-to-end: code-first schema with Pothos, served by GraphQL Yoga inside
+Next.js, consumed through Apollo Client's normalized cache, persisted with
+Drizzle + SQLite.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+**Live demo:** _(coming — seeded demo mode for interviewers)_
+
+## Why this exists
+
+Spreadsheets lose the thread on follow-ups, and every off-the-shelf tracker is
+either bloated or unowned. Building my own meant real daily usage (real edge
+cases), and a deliberate tour through the full GraphQL arc: schema design,
+resolvers, the N+1 problem and DataLoader, and client-side cache normalization.
+
+## Architecture
+
+```
+SQLite ── Drizzle ORM ── Pothos (code-first schema) ── GraphQL Yoga
+                                                          │  /api/graphql
+Next.js (App Router) ─────────── Apollo Client (normalized cache) ── UI
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Decisions
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+_Each decision gets a short write-up as it's made; the format is
+problem → options → choice → tradeoff._
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### GraphQL Yoga over Apollo Server
+Apollo Server still leads raw downloads (~2M/wk vs ~800K/wk in 2026) but is
+increasingly oriented toward its managed/federation ecosystem; Yoga is
+framework-agnostic, lighter, and the common recommendation for new projects.
+The transferable skills — schema design, resolvers, DataLoader — are identical
+(same graphql-js core), and Apollo expertise still shows up here where Apollo
+actually dominates: the client. Tradeoff accepted: fewer JD keyword matches on
+the server layer, deliberately offset by Apollo Client on the front.
 
-## Learn More
+### Pothos (code-first) over SDL-first
+Full TypeScript inference from resolver to schema with zero codegen for the
+server layer. Tradeoff: SDL-first reads more portably in reviews; mitigated by
+committing a generated `schema.graphql` snapshot _(TODO)_.
 
-To learn more about Next.js, take a look at the following resources:
+### SQLite + Drizzle
+Single-user tool → zero-ops local file DB, trivially seedable for demo mode and
+`:memory:` tests. Tradeoff: no Postgres story in v1; revisit only if hosting
+demands it.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Metrics
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+_(placeholder — filled in during the DataLoader session)_
 
-## Deploy on Vercel
+| Scenario | Queries before | Queries after DataLoader |
+| -------- | -------------- | ------------------------ |
+| `applications { contacts }` × N rows | TBD (N+1) | TBD |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install
+npm run db:seed   # demo data (idempotent)
+npm run dev       # http://localhost:3000 · GraphiQL at /api/graphql
+
+npm run test      # unit tests (Vitest, in-memory SQLite)
+npm run test:e2e  # Playwright, one real end-to-end path
+npm run typecheck && npm run lint
+```
+
+## Scope (v1 guardrails)
+
+Applications, stages, contacts, follow-up dates. **Deliberately excluded:**
+auth-provider integrations, email scraping, AI features. Ship small, polished,
+instrumented (Vitals RUM lands here once built).
+
+## Roadmap
+
+- [x] Walking skeleton: schema → resolver → Yoga route → Apollo Client table, tested end-to-end
+- [ ] Mutations: update stage, set follow-up, add contact (one per session, each unit-tested)
+- [ ] `Application.contacts` — naive N+1 first, then DataLoader; record query counts above
+- [ ] GraphQL Codegen for typed client operations
+- [ ] Streaming SSR via `@apollo/client-integration-nextjs`
+- [ ] Deploy + seeded demo mode; a11y pass; instrument with Vitals

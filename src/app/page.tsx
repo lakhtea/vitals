@@ -1,69 +1,83 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { gql } from "@apollo/client";
+import { useQuery } from "@apollo/client/react";
+
+const APPLICATIONS = gql`
+  query Applications {
+    applications {
+      id
+      company
+      role
+      stage
+      followUpOn
+    }
+  }
+`;
+
+interface ApplicationsData {
+  applications: Array<{
+    id: string;
+    company: string;
+    role: string;
+    stage: string;
+    followUpOn: string | null;
+  }>;
+}
+
+// SESSION TODO: extract typed operations with GraphQL Codegen instead of the
+// hand-written interface above; add create/edit forms; stage board view.
 
 export default function Home() {
+  const { data, loading, error } = useQuery<ApplicationsData>(APPLICATIONS);
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main style={{ maxWidth: 720, margin: "0 auto", padding: "2rem 1rem" }}>
+      <h1>Pipeline</h1>
+      <p>Job applications, tracked with the tool they helped build.</p>
+
+      {loading && <p>Loading…</p>}
+      {error && <p role="alert">Failed to load applications: {error.message}</p>}
+
+      {data && data.applications.length === 0 && (
+        <p>
+          No applications yet. Run <code>npm run db:seed</code> for demo data.
+        </p>
+      )}
+
+      {data && data.applications.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <caption style={{ textAlign: "left", marginBottom: "0.5rem" }}>
+            {data.applications.length} application(s)
+          </caption>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left" }} scope="col">
+                Company
+              </th>
+              <th style={{ textAlign: "left" }} scope="col">
+                Role
+              </th>
+              <th style={{ textAlign: "left" }} scope="col">
+                Stage
+              </th>
+              <th style={{ textAlign: "left" }} scope="col">
+                Follow up
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.applications.map((app) => (
+              <tr key={app.id}>
+                <td>{app.company}</td>
+                <td>{app.role}</td>
+                <td>{app.stage}</td>
+                <td>{app.followUpOn ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </main>
   );
 }
