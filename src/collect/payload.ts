@@ -13,7 +13,7 @@ export const MAX_EVENTS_PER_BATCH = 25;
 export const CLOCK_SKEW_ALLOWANCE_MS = 5 * 60 * 1000;
 
 const EARLIEST_PLAUSIBLE_TIMESTAMP_MS = Date.UTC(2020, 0, 1);
-const MAX_ID_LENGTH = 128;
+export const MAX_ID_LENGTH = 128;
 const MAX_PATH_LENGTH = 2048;
 const MAX_USER_AGENT_FAMILY_LENGTH = 64;
 
@@ -53,7 +53,12 @@ export const makeCollectPayloadSchema = (now: number) => {
     }),
     pageview: z.object({
       id: identifier,
-      path: z.string().min(1).max(MAX_PATH_LENGTH).startsWith("/"),
+      path: z
+        .string()
+        .min(1)
+        .max(MAX_PATH_LENGTH)
+        .startsWith("/")
+        .regex(/^[^?#]*$/, { error: "path must be a pathname, without a query string or fragment" }),
       startedAt: timestamp,
     }),
     events: z.array(makeEventSchema(timestamp)).min(1).max(MAX_EVENTS_PER_BATCH),

@@ -1,6 +1,7 @@
 // The GraphQL schema: object types, root queries, and the data access behind
 // them. builder.toSchema() at the bottom is where Pothos emits a graphql-js schema.
 import { eq } from "drizzle-orm";
+import { GraphQLError } from "graphql";
 import { loadSiteMetrics } from "@/db/queries/metrics";
 import { type PageAggregate, listPagesForSite } from "@/db/queries/pages";
 import { listSessionsForSite } from "@/db/queries/sessions";
@@ -60,13 +61,19 @@ const SiteType = builder.objectRef<SiteRow>("Site").implement({
       type: [SessionType],
       description: "Most recent sessions first.",
       args: { filter: t.arg({ type: TrafficFilterInput }), limit: t.arg.int({ defaultValue: DEFAULT_SESSIONS_LIMIT }) },
-      resolve: (site, args, ctx) =>
-        listSessionsForSite({
+      resolve: (site, args, ctx) => {
+        const limit = args.limit ?? DEFAULT_SESSIONS_LIMIT;
+        // SQLite reads a negative LIMIT as "no limit", which would silently bypass the cap.
+        if (limit < 0) {
+          throw new GraphQLError(`sessions.limit must not be negative (got ${limit})`);
+        }
+        return listSessionsForSite({
           db: ctx.db,
           siteId: site.id,
-          limit: Math.min(args.limit ?? DEFAULT_SESSIONS_LIMIT, MAX_SESSIONS_LIMIT),
+          limit: Math.min(limit, MAX_SESSIONS_LIMIT),
           filter: toTrafficFilter(args.filter),
-        }),
+        });
+      },
     }),
   }),
 });

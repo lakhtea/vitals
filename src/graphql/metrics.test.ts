@@ -129,14 +129,19 @@ describe("Page.metrics and Site.metrics", () => {
     expect(lcp).toMatchObject({ sampleCount: 2, p50: 2000, p75: 3000 });
   });
 
-  it("rejects a malformed DateTime argument instead of silently ignoring it", async () => {
-    const db = makeDb(":memory:");
-    insertHandVerifiableFixture(db);
+  // "1" and an offset-less time are accepted by Date.parse (in the server's time zone), so they must be refused here.
+  it.each(["yesterday", "1", "2026-10-07T12:00"])(
+    "rejects the malformed DateTime argument %j instead of silently ignoring it",
+    async (from) => {
+      const db = makeDb(":memory:");
+      insertHandVerifiableFixture(db);
 
-    const result = await exec(db, PAGE_METRICS, { filter: { from: "yesterday" } });
+      const result = await exec(db, PAGE_METRICS, { filter: { from } });
 
-    expect(result.errors?.[0]?.message).toMatch(/DateTime/);
-  });
+      expect(result.errors?.[0]?.message).toMatch(/DateTime/);
+      expect(result.data?.site).toBeUndefined();
+    },
+  );
 
   it("answers 'for whom': device and connection filters narrow pages, metrics, and sessions together", async () => {
     const db = makeDb(":memory:");

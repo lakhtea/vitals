@@ -4,18 +4,20 @@
 // handler ever touches the database.
 import { z } from "zod";
 import { corsPreflightResponse, handleCollect } from "@/collect/handle";
+import { MAX_ID_LENGTH } from "@/collect/payload";
 import { createRateLimiter, DEMO_COLLECT_RATE_LIMIT, type RateLimitDecision } from "@/collect/rate-limit";
 import { isDemoMode } from "@/config/demo-mode";
 import { getDb } from "@/db";
 
 const MILLISECONDS_PER_SECOND = 1000;
-// Bodies that are not JSON with a string siteId share one bucket: they are
-// rejected by the handler anyway, so a 429 instead of a 400 costs nothing.
+// Bodies that are not JSON with a plausible siteId share one bucket: they are
+// rejected by the handler anyway, so a 429 instead of a 400 costs nothing. The
+// length cap matters because each distinct key is held in memory for a window.
 const UNIDENTIFIED_SITE_KEY = "<unidentified>";
 
 const demoLimiter = createRateLimiter(DEMO_COLLECT_RATE_LIMIT);
 
-const siteIdPeekSchema = z.object({ siteId: z.string() });
+const siteIdPeekSchema = z.object({ siteId: z.string().max(MAX_ID_LENGTH) });
 
 const parseJsonOrUndefined = (text: string): unknown => {
   try {

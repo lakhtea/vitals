@@ -123,6 +123,13 @@ describe("POST /api/collect", () => {
       "batch_too_large",
       undefined,
     ],
+    [
+      "a path carrying a query string",
+      { ...validBatch(), pageview: { id: "pv-1", path: "/pricing?token=abc", startedAt: NOW } },
+      422,
+      "invalid_payload",
+      "pageview.path",
+    ],
     ["an unknown site", { ...validBatch(), siteId: "nope" }, 404, "unknown_site", undefined],
   ])("rejects %s without storing anything", async (_label, body, status, code, issuePath) => {
     const response = await post(body);

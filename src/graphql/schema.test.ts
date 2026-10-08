@@ -68,3 +68,14 @@ describe("Query.sites and Site.pages", () => {
     expect(counts).toEqual([...counts].sort((a, b) => b - a));
   });
 });
+
+describe("Site.sessions limit", () => {
+  it("refuses a negative limit, which SQLite would otherwise read as 'no limit' and bypass the cap", async () => {
+    seed(db);
+
+    const result = await exec(`{ site(id: "demo") { sessions(limit: -1) { id } } }`);
+
+    expect(result.errors?.[0]?.message).toMatch(/limit/);
+    expect(result.data?.site).toBeNull();
+  });
+});
