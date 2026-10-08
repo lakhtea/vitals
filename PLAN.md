@@ -218,19 +218,19 @@ frameworks).
   entry on the integration approach; chapter 07 done.
 
 ### M8 — Performance on itself (the self-referential showpiece)
-- [ ] Stress seed behind a flag (~100k metric events across ~2k sessions); virtualize SessionsTable and PagesTable (TanStack Virtual or hand-rolled; log the decision); measure render before/after with a committed method
+- [x] Stress seed behind a flag (~100k metric events across ~2k sessions); virtualize SessionsTable and PagesTable (TanStack Virtual or hand-rolled; log the decision); measure render before/after with a committed method
 - [ ] Self-instrumentation in production mode: the dashboard loads its own built library and reports into itself; a small "This site, measured by itself" panel shows the dashboard's own p75s
-- [ ] Bundle budget: record the dashboard route's first-load JS; CI fails if it exceeds baseline + 10%
+- [x] Bundle budget: record the dashboard route's first-load JS; CI fails if it exceeds baseline + 10%
 - [ ] All measured numbers in README's metrics section
 - [ ] Chapter 08: what virtualization actually does, how the measurements were taken, how to read the bundle analysis, and how the self-instrumentation loop works end to end (Lakhte's library → collect → GraphQL → panel)
 - DoD: every number measured with committed method; CI enforces the budget;
   the self-measurement panel shows real collected data; chapter 08 done.
 
 ### M9 — Accessibility pass
-- [ ] axe checks in Playwright (`@axe-core/playwright`) on overview + a detail view, zero serious/critical violations
-- [ ] Full keyboard path e2e: change filters, sort the pages table, open a session without a mouse
-- [ ] Charts have non-visual equivalents (data table fallback or aria summary); visible focus states throughout
-- [ ] Chapter 09: what axe catches and what it cannot, the keyboard-path reasoning, how the chart fallbacks work
+- [x] axe checks in Playwright (`@axe-core/playwright`) on overview + a detail view, zero serious/critical violations
+- [x] Full keyboard path e2e: change filters, sort the pages table, open a session without a mouse
+- [x] Charts have non-visual equivalents (data table fallback or aria summary); visible focus states throughout
+- [x] Chapter 09: what axe catches and what it cannot, the keyboard-path reasoning, how the chart fallbacks work
 - DoD: axe e2e green in CI; keyboard e2e green; chapter 09 done.
 
 ### M10 — Deploy + demo mode

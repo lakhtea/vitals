@@ -32,6 +32,17 @@ The price is complexity: row heights must be known or measured, keyboard navigat
 
 The measurement that justifies it is render time of the sessions table with the stress seed, before and after, taken with a committed script rather than a screenshot of devtools.
 
+Measured here with `scripts/measure-render.ts` against a static Storybook build of the `TwoThousandRows` story, five runs each in a fresh browser context, time from navigation start to the frame after the first body row appears:
+
+| | `<tr>` in the DOM | Median time to first row |
+| --- | --- | --- |
+| Before (plain table) | 2,001 | 155 ms |
+| After (windowed) | 26 (header, 14 visible, 10 overscan, 1 spacer) | 91 ms |
+
+The implementation is hand-rolled rather than TanStack Virtual: every cell is single-line and ellipsised, so a fixed 36 px row is already the design, and the whole mechanism is one pure function (`rowWindow.ts`) plus two spacer rows.
+`aria-rowcount` and `aria-rowindex` tell screen readers the true total, and the header stays inside the same `<table>` so the semantics survive; axe runs on the 2,000-row story and passes.
+The README decision entry states the tradeoff: no variable heights, no scroll-to-row, and find-in-page only sees rendered rows.
+
 ## How to read a bundle budget
 
 `next build` prints, per route, the "First Load JS": the JavaScript the browser must download and execute before the route is interactive, shared chunks included.
@@ -41,6 +52,10 @@ A budget turns a number you glance at into a number you cannot regress: a commit
 The tolerance exists so an unrelated dependency bump does not block a release; the baseline is updated deliberately, in a commit that says why.
 
 The usual causes of a jump are worth knowing by name: a server-only module imported from a `"use client"` file, a date or utility library pulled in whole, a chart library, or `"use client"` placed too high in the tree so the whole page becomes client bundle.
+
+Two Next 16 facts shaped the script.
+`next build` no longer prints First Load JS, and Turbopack writes no `app-build-manifest.json`, so `scripts/check-bundle-budget.ts` sums the deduplicated entry chunks for the route from the client reference manifest plus the root main files (raw bytes on disk, JavaScript only, not gzip) and cross-checks the total against Next's own `route-bundle-stats.json`, failing if they disagree.
+Measured baseline for `/`: 677,930 bytes, about 201 KB gzipped, in `bundle-budget.json`; the CI `bundle` job fails above 110% of it, and `npm run measure:bundle` moves the baseline on purpose.
 
 ## The self-instrumentation loop, end to end
 
@@ -54,13 +69,17 @@ The loop is the honest version of a performance claim.
 A Lighthouse score is a lab run on one machine; the panel shows what real visitors to the public demo actually experienced, computed by the same code path as every other site's numbers.
 If the dashboard ships a layout shift, its own CLS card says so.
 
-## Why every new file exists (so far)
+## Why every new file exists
 
 - `scripts/seed-db.ts`: the CLI for both seeds (`db:seed`, `db:seed:stress`), kept out of `src/db/seed.ts` so the db module can import the seed for demo mode without an import cycle.
 - `src/db/synthetic/traffic.ts` gained a `profile` option (`demo` or `stress`) holding the id prefix, time window, and pageviews-per-session mix; the demo profile produces byte-identical output to before, verified by hashing the generated rows.
 - `src/db/seed.ts` gained `seedStress` and chunked inserts for both seeds.
+- `scripts/check-bundle-budget.ts` and `bundle-budget.json`: the budget check and its committed baseline (`npm run check:bundle`, `npm run measure:bundle`); CI job `bundle`.
+- `scripts/measure-render.ts`: the render measurement (`npm run build-storybook && npm run measure:render`), which serves the static Storybook with a tiny Node server and drives headless Chromium.
+- `src/dashboard/rowWindow.ts` (+ test): the pure window computation behind the virtualised table; the unit tests guard the end clamp, which is the classic off-by-one.
+- `src/dashboard/components/SessionsTable.tsx` (+ CSS, stories): windowed body, spacer rows, sticky header, ARIA row counts; `TwoThousandRows` and `TwoThousandRowsScrolledToEnd` stories pin the behaviour.
 
-Remaining M8 pieces (virtualised sessions table with its measurement, the bundle budget, and the self-measurement panel) are added here when they land.
+Still to come in M8: the self-measurement panel ("This site, measured by itself"), which needs Lakhte's browser library (M3) to produce data for the `vitals-dashboard` site.
 
 ## Self-check
 

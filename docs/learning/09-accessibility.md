@@ -34,6 +34,26 @@ Two things make it an honest equivalent:
 
 The hidden table uses the clip-rect pattern, not `display: none`, because `display: none` removes content from the accessibility tree as well as the screen.
 
+## What was found
+
+Running both axe states against the composed overview reported zero WCAG 2.1 A/AA violations across 23 rules, and the keyboard path passed without a component change.
+That is not luck; it is the Storybook a11y run from M6 having already caught the body scroll-container defect and forced labels, scopes, and contrast per component.
+To prove the new gates can fail, two regressions were introduced and reverted: `outline: none` on the sort buttons fails the keyboard spec on the focus-ring assertion, and a lighter muted token fails the axe spec with three serious contrast findings.
+
+One platform fact changed the spec: Chromium on macOS opens a focused `<select>`'s popup on ArrowDown instead of changing its value, and popup keystrokes are inert headless.
+The spec changes selects with typeahead (the option's first letter), which `HTMLSelectElement` handles natively on every platform while focus stays on the select.
+
+The plan's "open a session without a mouse" is not yet meaningful: sessions have no detail view, so the table rows are not interactive.
+The path therefore ends at the next focusable control after the sort buttons; when a session view exists the spec extends by one step.
+
+## Why every new file exists
+
+- `e2e/a11y.spec.ts`: axe in two page states, gating on serious and critical only, the rest printed as information and attached as test annotations.
+  Next's dev-only tools indicator (`<nextjs-portal>`) is excluded from the scan.
+- `e2e/keyboard.spec.ts`: the single continuous keyboard path described above.
+- `e2e/overview.ts`: the shared helper that opens the seeded overview and locates both tables by role, so the specs read as user steps rather than selectors.
+- `@axe-core/playwright` (dev dependency): the axe runner for Playwright.
+
 ## Visible focus
 
 Every interactive element has a `:focus-visible` outline using the foreground colour with a two-pixel offset.

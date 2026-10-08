@@ -192,6 +192,23 @@ The line where data from outside the system enters code that assumes it is well 
 A TypeScript-first runtime validation library.
 A schema both checks data at runtime and produces the static type, so a valid payload has exactly one definition.
 
+## Performance
+
+**Virtualisation (windowing).**
+Rendering only the rows that intersect the viewport plus a small overscan, inside a container sized as if every row were present.
+Cuts DOM size from N rows to a few dozen; the price is fixed row heights and find-in-page seeing only rendered rows.
+
+**First Load JS.**
+The JavaScript a route needs before it is interactive, shared chunks included.
+Next 16 no longer prints it, so `scripts/check-bundle-budget.ts` computes it from the build manifests.
+
+**Bundle budget.**
+A committed baseline for First Load JS plus a tolerance, enforced in CI.
+It turns a number you glance at into a number you cannot regress by accident.
+
+**aria-rowcount / aria-rowindex.**
+ARIA attributes that tell assistive technology how many rows a table really has and which row this is, when the DOM holds only a window of them.
+
 ## Hosting
 
 **Cold start.**
