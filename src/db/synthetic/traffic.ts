@@ -2,7 +2,9 @@
 // database access, so the distributions can be read, tuned, and tested alone.
 // Shape of the fakery: per-path personalities (image-heavy blog posts have
 // worse LCP and CLS, the JS-heavy dashboard has worse INP), slower devices and
-// connections multiply timings, and TTFB < FCP < LCP always holds.
+// connections multiply timings, and TTFB < FCP < LCP always holds. Two
+// profiles share the one generator: "demo" (a small site's week) and "stress"
+// (a month of volume for the M8 benchmarks).
 import type { ConnectionType, DeviceClass } from "@/vitals/dimensions";
 import { type MetricName, rateMetric } from "@/vitals/metrics";
 import type { MetricEventInsert, PageviewInsert, SessionInsert } from "../schema";
@@ -55,13 +57,46 @@ const REPORTED_CONNECTION_MIX: ReadonlyArray<Weighted<ConnectionType>> = [
   { value: "slow-2g", weight: 1 },
 ];
 
-const PAGEVIEWS_PER_SESSION: ReadonlyArray<Weighted<number>> = [
-  { value: 1, weight: 35 },
-  { value: 2, weight: 30 },
-  { value: 3, weight: 18 },
-  { value: 4, weight: 10 },
-  { value: 5, weight: 7 },
-];
+export type TrafficProfileName = "demo" | "stress";
+
+interface TrafficProfile {
+  /** Every generated id starts with this (`seed-s12-p3`), so two profiles never collide in one database. */
+  idPrefix: string;
+  /** Session starts are spread uniformly across a window this long, ending at `now`. */
+  windowMs: number;
+  pageviewsPerSession: ReadonlyArray<Weighted<number>>;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const TRAFFIC_PROFILES: Record<TrafficProfileName, TrafficProfile> = {
+  // A small site's last week: short visits, most of them one or two pages.
+  demo: {
+    idPrefix: "seed",
+    windowMs: 7 * DAY_MS,
+    pageviewsPerSession: [
+      { value: 1, weight: 35 },
+      { value: 2, weight: 30 },
+      { value: 3, weight: 18 },
+      { value: 4, weight: 10 },
+      { value: 5, weight: 7 },
+    ],
+  },
+  // Volume rather than realism: long sessions (10.65 pageviews on average, so
+  // 2,000 sessions give roughly 100k metric events) spread over a month.
+  stress: {
+    idPrefix: "stress",
+    windowMs: 30 * DAY_MS,
+    pageviewsPerSession: [
+      { value: 4, weight: 10 },
+      { value: 7, weight: 20 },
+      { value: 10, weight: 30 },
+      { value: 13, weight: 25 },
+      { value: 16, weight: 10 },
+      { value: 20, weight: 5 },
+    ],
+  },
+};
 
 const DEVICE_SLOWDOWN: Record<DeviceClass, number> = { desktop: 1, tablet: 1.2, mobile: 1.5, unknown: 1.2 };
 const CONNECTION_SLOWDOWN: Record<ConnectionType, number> = {
@@ -72,7 +107,6 @@ const CONNECTION_SLOWDOWN: Record<ConnectionType, number> = {
   unknown: 1.1,
 };
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const INTERACTION_PROBABILITY = 0.7;
 
 interface PageviewMetrics {
@@ -134,13 +168,16 @@ export const generateSyntheticTraffic = ({
   sessionCount,
   now,
   seed,
+  profile = "demo",
 }: {
   siteId: string;
   sessionCount: number;
   now: number;
   seed: number;
+  profile?: TrafficProfileName;
 }): SyntheticTraffic => {
   const rng = createRng(seed);
+  const { idPrefix, windowMs, pageviewsPerSession } = TRAFFIC_PROFILES[profile];
   const traffic: SyntheticTraffic = { sessions: [], pageviews: [], metricEvents: [] };
 
   const recordEvent = ({
@@ -165,11 +202,11 @@ export const generateSyntheticTraffic = ({
   };
 
   for (let sessionIndex = 0; sessionIndex < sessionCount; sessionIndex += 1) {
-    const sessionId = `seed-s${sessionIndex}`;
+    const sessionId = `${idPrefix}-s${sessionIndex}`;
     const device = pickWeighted(rng, DEVICE_MIX);
     const browser = pickWeighted(rng, BROWSER_MIX);
     const connection = browser.reportsConnection ? pickWeighted(rng, REPORTED_CONNECTION_MIX) : "unknown";
-    const sessionStartedAt = now - Math.floor(uniform(rng, 0, SEVEN_DAYS_MS));
+    const sessionStartedAt = now - Math.floor(uniform(rng, 0, windowMs));
 
     traffic.sessions.push({
       id: sessionId,
@@ -181,17 +218,17 @@ export const generateSyntheticTraffic = ({
     });
 
     let pageviewStartedAt = sessionStartedAt;
-    const pageviewCount = pickWeighted(rng, PAGEVIEWS_PER_SESSION);
+    const pageviewCount = pickWeighted(rng, pageviewsPerSession);
 
     for (let pageviewIndex = 0; pageviewIndex < pageviewCount; pageviewIndex += 1) {
       const pageviewId = `${sessionId}-p${pageviewIndex}`;
-      const profile = pickWeighted(
+      const pathProfile = pickWeighted(
         rng,
         PATH_PROFILES.map((candidate) => ({ value: candidate, weight: candidate.weight })),
       );
-      traffic.pageviews.push({ id: pageviewId, sessionId, path: profile.path, startedAt: pageviewStartedAt });
+      traffic.pageviews.push({ id: pageviewId, sessionId, path: pathProfile.path, startedAt: pageviewStartedAt });
 
-      const metrics = sampleMetrics({ rng, profile, device, connection });
+      const metrics = sampleMetrics({ rng, profile: pathProfile, device, connection });
       recordEvent({ pageviewId, name: "TTFB", value: metrics.TTFB, recordedAt: pageviewStartedAt + metrics.TTFB });
       recordEvent({ pageviewId, name: "FCP", value: metrics.FCP, recordedAt: pageviewStartedAt + metrics.FCP });
       recordEvent({ pageviewId, name: "LCP", value: metrics.LCP, recordedAt: pageviewStartedAt + metrics.LCP });
