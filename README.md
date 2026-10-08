@@ -1,28 +1,43 @@
-# Pipeline
+# Vitals
 
 <!-- After first push: swap <USER> for your GitHub handle -->
-![CI](https://github.com/<USER>/pipeline/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/<USER>/vitals/actions/workflows/ci.yml/badge.svg)
 
-A job-search tracker I built — and use daily — while running my own search.
-GraphQL end-to-end: code-first schema with Pothos, served by GraphQL Yoga inside
-Next.js, consumed through Apollo Client's normalized cache, persisted with
-Drizzle + SQLite.
+A self-hostable real-user-monitoring (RUM) kit: a tiny browser library that
+captures Core Web Vitals from real sessions, and a GraphQL analytics dashboard
+to explore them. GraphQL end-to-end: code-first schema with Pothos, served by
+GraphQL Yoga inside Next.js, consumed through Apollo Client's normalized
+cache, persisted with Drizzle + SQLite.
 
-**Live demo:** _(coming — seeded demo mode for interviewers)_
+**Live demo:** _(coming — seeded synthetic traffic, plus the dashboard
+measuring itself)_
 
 ## Why this exists
 
-Spreadsheets lose the thread on follow-ups, and every off-the-shelf tracker is
-either bloated or unowned. Building my own meant real daily usage (real edge
-cases), and a deliberate tour through the full GraphQL arc: schema design,
-resolvers, the N+1 problem and DataLoader, and client-side cache normalization.
+Most teams meet Core Web Vitals for the first time inside a Lighthouse score,
+which is a lab number. What users actually experience — LCP on a cold cache in
+the subway, INP on a six-year-old Android — only shows up in field data.
+Hosted RUM products solve this but are heavy, paid, and opaque. Vitals is the
+small, readable version: one script tag's worth of collection, an ingest
+endpoint, and a dashboard that answers the three questions that matter —
+what's slow, where, and for whom.
+
+It is also a deliberate tour through the full GraphQL arc (schema design,
+resolvers, the N+1 problem and DataLoader, cache normalization) and through
+frontend performance engineering practiced on itself: the dashboard is
+instrumented with its own library, and its own numbers are public.
 
 ## Architecture
 
 ```
+your site ── vitals (browser lib: web-vitals + PerformanceObserver)
+                 │  sendBeacon batches
+                 ▼
+        /api/collect (validation, ingest)
+                 │
 SQLite ── Drizzle ORM ── Pothos (code-first schema) ── GraphQL Yoga
                                                           │  /api/graphql
-Next.js (App Router) ─────────── Apollo Client (normalized cache) ── UI
+Next.js (App Router) ─────────── Apollo Client (normalized cache) ── dashboard
 ```
 
 ## Decisions
@@ -45,41 +60,40 @@ server layer. Tradeoff: SDL-first reads more portably in reviews; mitigated by
 committing a generated `schema.graphql` snapshot _(TODO)_.
 
 ### SQLite + Drizzle
-Single-user tool → zero-ops local file DB, trivially seedable for demo mode and
-`:memory:` tests. Tradeoff: no Postgres story in v1; revisit only if hosting
-demands it.
+Single-tenant, demo-scale collector → zero-ops local file DB, trivially
+seedable with synthetic traffic and `:memory:` in tests. Tradeoff: no
+Postgres/ClickHouse story for real event volume; acknowledged openly — this is
+a kit, not a SaaS.
 
-## Metrics
+## Metrics (measured here, on this repo — never estimated)
 
-_(placeholder — filled in during the DataLoader session)_
-
-| Scenario | Queries before | Queries after DataLoader |
-| -------- | -------------- | ------------------------ |
-| `applications { contacts }` × N rows | TBD (N+1) | TBD |
+| What | Before | After |
+| ---- | ------ | ----- |
+| `pages { metrics }` SQL queries over N pages | TBD (N+1) | TBD (DataLoader) |
+| Sessions table render, stress seed | TBD | TBD (virtualized) |
+| First-load JS, dashboard route | TBD | budget enforced in CI |
+| This dashboard's own p75 LCP / CLS / INP | — | TBD (self-instrumented) |
 
 ## Development
 
 ```bash
 npm install
-npm run db:seed   # demo data (idempotent)
+npm run db:seed   # synthetic demo traffic (idempotent)
 npm run dev       # http://localhost:3000 · GraphiQL at /api/graphql
 
 npm run test      # unit tests (Vitest, in-memory SQLite)
-npm run test:e2e  # Playwright, one real end-to-end path
+npm run test:e2e  # Playwright, end-to-end paths
 npm run typecheck && npm run lint
 ```
 
 ## Scope (v1 guardrails)
 
-Applications, stages, contacts, follow-up dates. **Deliberately excluded:**
-auth-provider integrations, email scraping, AI features. Ship small, polished,
-instrumented (Vitals RUM lands here once built).
+Core Web Vitals (LCP, CLS, INP, TTFB, FCP) by page, device class, and
+connection; a session view; percentile aggregates (p75 first, per web.dev
+thresholds). **Deliberately excluded:** error tracking, session replay, alerts,
+multi-tenant auth, sampling strategies beyond a simple rate. Ship small,
+polished, instrumented with itself.
 
 ## Roadmap
 
-- [x] Walking skeleton: schema → resolver → Yoga route → Apollo Client table, tested end-to-end
-- [ ] Mutations: update stage, set follow-up, add contact (one per session, each unit-tested)
-- [ ] `Application.contacts` — naive N+1 first, then DataLoader; record query counts above
-- [ ] GraphQL Codegen for typed client operations
-- [ ] Streaming SSR via `@apollo/client-integration-nextjs`
-- [ ] Deploy + seeded demo mode; a11y pass; instrument with Vitals
+See [PLAN.md](./PLAN.md) — the working milestone plan this repo is built from.
