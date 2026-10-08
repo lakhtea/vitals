@@ -4,8 +4,8 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M4 complete** (M3, the browser library, is Lakhte's and in progress).
-Data model, migrations, seed, ingest endpoint, and the analytics API (percentiles, rating buckets, DataLoader-batched relations) are in place.
+Current state: **M5 complete** (M3, the browser library, is Lakhte's and in progress).
+Data model, migrations, seed, ingest endpoint, analytics API (percentiles, rating buckets, DataLoader-batched relations), committed schema snapshot, and typed client documents are in place.
 The dashboard UI still shows the M1 pages table; M6 builds the real one.
 
 ## The one-paragraph version
@@ -32,6 +32,7 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   ├── types/            MetricSummary, Session + Pageview (loadableList relation)
 │   │   ├── loaders/          batch functions DataLoader calls (Page.metrics)
 │   │   ├── schema.ts         Page, Site, root queries, toSchema()
+│   │   ├── generated/        GraphQL Codegen output: graphql() + TypedDocumentNodes (committed, never edited)
 │   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler + tests
 │   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions
@@ -43,7 +44,9 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │       ├── synthetic/        deterministic fake-traffic generator
 │       └── seed.ts           idempotent demo seed (npm run db:seed)
 ├── drizzle/                  generated migrations + snapshots (npm run db:generate)
-├── scripts/                  measure-query-count.ts (npm run measure:queries)
+├── scripts/                  measure-query-count.ts (npm run measure:queries), print-schema.ts
+├── schema.graphql            the schema snapshot; a test and CI fail if it drifts from src/graphql
+├── codegen.ts                GraphQL Codegen config (npm run codegen)
 ├── e2e/                      Playwright specs
 ├── docs/
 │   ├── TOUR.md               this file
@@ -89,6 +92,12 @@ All timestamps are epoch milliseconds.
 CI runs both plus `typecheck` and `lint`.
 The rule for what deserves a test is in TESTING_RULES.md.
 
+## When you change the schema
+
+1. Edit `src/graphql/**`.
+2. `npm run codegen` rewrites `schema.graphql` and `src/graphql/generated/`.
+3. Commit all three together; the snapshot test and `codegen:check` in CI enforce it.
+
 ## Run it
 
 ```bash
@@ -104,6 +113,7 @@ npm run dev          # http://localhost:3000, GraphiQL at /api/graphql
 - [02 - Ingestion](learning/02-ingestion.md): sendBeacon, batching, idempotent delivery, and what validation protects against.
 - [03 - The browser library: brief](learning/03-library-brief.md): Lakhte's build; the contract, reading list, acceptance criteria, and pitfalls.
 - [04 - N+1 and DataLoader](learning/04-n-plus-one-and-dataloader.md): the naive query log line by line, exactly what DataLoader batches and when, measured before/after.
+- [05 - Codegen and the schema snapshot](learning/05-codegen-and-schema-snapshot.md): what the generator emits, how `useQuery` becomes typed, and why CI fails on drift.
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
 ## Environment variables

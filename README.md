@@ -57,7 +57,30 @@ the server layer, deliberately offset by Apollo Client on the front.
 ### Pothos (code-first) over SDL-first
 Full TypeScript inference from resolver to schema with zero codegen for the
 server layer. Tradeoff: SDL-first reads more portably in reviews; mitigated by
-committing a generated `schema.graphql` snapshot _(TODO)_.
+committing a generated [`schema.graphql`](./schema.graphql) snapshot that a
+unit test and a CI step keep in lock-step with the code.
+
+### Non-null by default in the schema
+Pothos v4 defaults every field to nullable. The first typed client query
+surfaced it: `Site.pages` was `[Page!]` and `name` was `String`, so every
+read needed a null check. Options: annotate `nullable: false` on every
+field (noisy, forgettable), accept nullable everywhere (pushes defensive
+code into every component), or flip the builder default. Choice: builder
+default `defaultFieldNullability: false`; fields opt into null explicitly
+(`site(id:)` for an unknown id). Tradeoff: a resolver that returns
+`undefined` by mistake now produces a GraphQL error rather than a quiet
+null, which is the behaviour we want in a dashboard that must not lie.
+
+### Typed documents (codegen `client` preset) over generated hooks
+Client operations need types that cannot drift from the schema. Options:
+hand-written result interfaces (what the skeleton had; drifts silently),
+generated React hooks per operation (`useSitesWithPagesQuery`; couples every
+component to Apollo's hook API and bloats with one hook per operation), or
+the `client` preset's `graphql()` function returning a `TypedDocumentNode`
+that any client (Apollo today, RSC fetches in M7) infers from. Choice: typed
+documents, fragment masking off. Tradeoff: the generated module must be
+committed and regenerated (`npm run codegen`), which is why
+`codegen:check` runs in CI and a test pins `schema.graphql`.
 
 ### SQLite + Drizzle
 Single-tenant, demo-scale collector → zero-ops local file DB, trivially
@@ -188,6 +211,7 @@ npm run test:e2e  # Playwright, end-to-end paths
 npm run typecheck && npm run lint
 
 npm run db:generate   # after editing src/db/schema.ts: writes the next migration
+npm run codegen       # after changing the schema or a client query: schema.graphql + typed documents
 ```
 
 The database lives at `.data/vitals.db` (override with `VITALS_DB_PATH`).

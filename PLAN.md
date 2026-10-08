@@ -188,10 +188,10 @@ are Lakhte's.
   linked; regression test green; chapter 04 done.
 
 ### M5 — Typed operations + schema snapshot
-- [ ] GraphQL Codegen for client operations (typed hooks or typed documents; pick one, log the decision)
-- [ ] Commit a generated `schema.graphql` snapshot; CI step regenerates and fails on drift
-- [ ] Migrate client queries to generated types; delete hand-written operation types
-- [ ] Chapter 05: what codegen generates and why the snapshot-drift CI check exists
+- [x] GraphQL Codegen for client operations (typed hooks or typed documents; pick one, log the decision)
+- [x] Commit a generated `schema.graphql` snapshot; CI step regenerates and fails on drift
+- [x] Migrate client queries to generated types; delete hand-written operation types
+- [x] Chapter 05: what codegen generates and why the snapshot-drift CI check exists
 - DoD: no hand-rolled operation types on the client; CI fails on snapshot
   drift; chapter 05 done.
 
@@ -351,3 +351,11 @@ decisions logged, anything blocked.
   DataLoader vs root SQL written honestly. Chapter 04, TOUR, glossary. Not
   batched on purpose: Site.pages across sites (named as the chapter's
   exercise). Next: M5.
+- 2026-10-07 (night, Claude Code) — M5 complete. `scripts/print-schema.ts`
+  writes a lexicographically sorted `schema.graphql`; GraphQL Codegen
+  `client` preset (typed documents, fragment masking off; decision logged)
+  generates `src/graphql/generated/`; page.tsx uses `graphql()` and its
+  hand-written result interface is gone. Drift guards: a unit test compares
+  the committed snapshot to the live schema, and CI runs `npm run
+  codegen:check` (regenerate + `git diff --exit-code`). Generated code is
+  lint-ignored and coverage-excluded. Chapter 05, TOUR, glossary. Next: M6.

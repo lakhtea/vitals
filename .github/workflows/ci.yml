@@ -19,6 +19,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test -- --coverage
+      # Regenerates schema.graphql and the typed documents, then fails on any diff.
+      - run: npm run codegen:check
 
   e2e:
     name: E2E (Playwright)

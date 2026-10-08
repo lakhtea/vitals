@@ -3,10 +3,12 @@
 // The dashboard home: every measured path with its traffic counts. A client
 // component because Apollo's hooks need browser-side React context; M7 moves
 // the first paint to the server.
-import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
+import { graphql } from "@/graphql/generated";
 
-const SITES_WITH_PAGES = gql`
+// graphql() is generated: the document is typed against schema.graphql, so
+// useQuery infers the result shape and a typo here fails `npm run typecheck`.
+const SITES_WITH_PAGES = graphql(`
   query SitesWithPages {
     sites {
       id
@@ -18,16 +20,7 @@ const SITES_WITH_PAGES = gql`
       }
     }
   }
-`;
-
-// Hand-written for now; M5 replaces this with generated types.
-interface SitesWithPagesData {
-  sites: Array<{
-    id: string;
-    name: string;
-    pages: Array<{ path: string; pageviewCount: number; eventCount: number }>;
-  }>;
-}
+`);
 
 const cellStyle = { textAlign: "left", padding: "0.4rem 0.6rem" } as const;
 const numberCellStyle = {
@@ -37,7 +30,7 @@ const numberCellStyle = {
 
 export default function Home() {
   const { data, loading, error } =
-    useQuery<SitesWithPagesData>(SITES_WITH_PAGES);
+    useQuery(SITES_WITH_PAGES);
 
   return (
     <main style={{ maxWidth: 840, margin: "0 auto", padding: "2rem 1rem" }}>

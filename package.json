@@ -16,7 +16,9 @@
     "test:e2e": "playwright test",
     "db:seed": "tsx src/db/seed.ts",
     "db:generate": "drizzle-kit generate",
-    "measure:queries": "tsx scripts/measure-query-count.ts"
+    "measure:queries": "tsx scripts/measure-query-count.ts",
+    "codegen": "tsx scripts/print-schema.ts && graphql-codegen --config codegen.ts",
+    "codegen:check": "npm run codegen && git diff --exit-code -- schema.graphql src/graphql/generated"
   },
   "dependencies": {
     "@apollo/client": "^4.2.10",
@@ -34,6 +36,8 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^7.4.5",
+    "@graphql-codegen/client-preset": "^6.2.2",
     "@playwright/test": "^1.62.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",

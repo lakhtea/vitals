@@ -20,7 +20,8 @@ export default defineConfig({
     environment: "node",
     coverage: {
       provider: "v8",
-      include: ["src/graphql/**", "src/db/**", "src/vitals/**"],
+      include: ["src/graphql/**", "src/db/**", "src/vitals/**", "src/collect/**"],
+      exclude: ["src/graphql/generated/**"],
     },
   },
 });

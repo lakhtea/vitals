@@ -1,0 +1,101 @@
+enum ConnectionType {
+  FOUR_G
+  SLOW_2G
+  THREE_G
+  TWO_G
+  UNKNOWN
+}
+
+"""An ISO 8601 date-time string, e.g. 2026-10-07T12:00:00.000Z."""
+scalar DateTime
+
+enum DeviceClass {
+  DESKTOP
+  MOBILE
+  TABLET
+  UNKNOWN
+}
+
+enum MetricName {
+  CLS
+  FCP
+  INP
+  LCP
+  TTFB
+}
+
+enum MetricRating {
+  GOOD
+  NEEDS_IMPROVEMENT
+  POOR
+}
+
+"""Percentiles and rating buckets for one metric over a set of pageviews."""
+type MetricSummary {
+  buckets: RatingBuckets!
+  name: MetricName!
+  p50: Float!
+
+  """The headline number, per web.dev."""
+  p75: Float!
+  p75Rating: MetricRating!
+  p90: Float!
+  sampleCount: Int!
+}
+
+"""Traffic for one URL path, aggregated over its pageviews."""
+type Page {
+  """Metric events recorded on this path."""
+  eventCount: Int!
+
+  """Per-metric percentiles for this path, optionally within [from, to)."""
+  metrics(from: DateTime, to: DateTime): [MetricSummary!]!
+  pageviewCount: Int!
+  path: String!
+}
+
+"""One navigation within a session."""
+type Pageview {
+  id: ID!
+  path: String!
+  startedAt: DateTime!
+}
+
+type Query {
+  pages(siteId: ID!): [Page!]!
+  site(id: ID!): Site
+  sites: [Site!]!
+}
+
+"""How many samples fell in each web.dev rating band."""
+type RatingBuckets {
+  good: Int!
+  needsImprovement: Int!
+  poor: Int!
+}
+
+"""One visitor's visit: who they were (coarsely) and when."""
+type Session {
+  connectionType: ConnectionType!
+  deviceClass: DeviceClass!
+  id: ID!
+
+  """This session's navigations, in visit order."""
+  pageviews: [Pageview!]!
+  startedAt: DateTime!
+  userAgentFamily: String!
+}
+
+"""A property being measured."""
+type Site {
+  createdAt: DateTime!
+  id: ID!
+
+  """Site-wide rollup across every path, optionally within [from, to)."""
+  metrics(from: DateTime, to: DateTime): [MetricSummary!]!
+  name: String!
+  pages: [Page!]!
+
+  """Most recent sessions first."""
+  sessions(limit: Int = 50): [Session!]!
+}

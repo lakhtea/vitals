@@ -80,6 +80,26 @@ Time filters use it so adjacent ranges never double count an event on the bounda
 The object every resolver receives as its third argument.
 Here it carries the database handle, which is how tests swap in an in-memory database.
 
+**SDL (Schema Definition Language).**
+GraphQL's own text syntax for schemas (`type Site { id: ID! }`).
+Pothos builds the schema in TypeScript and `schema.graphql` is its printed SDL.
+
+**Schema snapshot.**
+The committed `schema.graphql`, generated from the running schema and sorted for stable diffs.
+It is the reviewable contract: a schema change shows up as a diff in it, and a test fails if it is stale.
+
+**GraphQL Codegen.**
+A tool that reads a schema and the client's operations and generates TypeScript from them.
+The `client` preset here emits a `graphql()` function whose return type is a `TypedDocumentNode`.
+
+**TypedDocumentNode.**
+A GraphQL document object that carries its result and variable types as TypeScript generics.
+Apollo's `useQuery` reads them, so `data.sites[0].pages` is typed without any annotation.
+
+**Fragment masking.**
+A codegen option where each component only sees the fields its own fragment asked for.
+Off in this repo to keep generated types plain.
+
 ## Database
 
 **ORM / query builder.**
