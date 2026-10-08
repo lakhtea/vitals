@@ -48,6 +48,25 @@ A demo that runs different code from the real thing proves nothing; this one dif
 Serverless bundlers only ship files they can see from imports, and a folder read with `fs` is invisible to them, so `next.config.ts` lists `drizzle/**` in the output file tracing.
 Without it the first request on the platform fails with "migrations folder not found", which is the kind of deploy-only error worth writing down.
 
+## Why every new file exists
+
+- `src/config/demo-mode.ts`: `isDemoMode()`, true only when `VITALS_DEMO_MODE=1`; the single place the flag is read.
+- `src/db/index.ts`: in demo mode defaults the database path to the OS temp dir and runs the idempotent seed on first open.
+- `src/collect/rate-limit.ts` (+ one scenario test): a pure, clock-injectable fixed-window limiter keyed by site, 120 batches per minute; wired only in `src/app/api/collect/route.ts` so the tested handler is untouched.
+- `src/app/api/graphql/route.ts`: `graphiql: !isDemoMode()`.
+- `src/app/DemoBanner.tsx`: the banner, a server component that renders nothing outside demo mode.
+- `next.config.ts`: `outputFileTracingIncludes` for `drizzle/**`.
+- `docs/learning/10-deploy-notes-draft.md`: the owner's Vercel steps and the decision text, folded into README and NEEDS-LAKHTE.
+
+## Try it locally
+
+```bash
+VITALS_DEMO_MODE=1 npm run build && VITALS_DEMO_MODE=1 npm run start
+```
+
+The log shows the seed running on first open; `GET /api/graphql` answers 406 (no GraphiQL) while `POST` works; the 121st batch to `/api/collect` within a minute gets a 429 with `retry-after`.
+Delete the temp database (`$TMPDIR/vitals-demo.db`) to simulate a cold start.
+
 ## Self-check
 
 1. Why not use the persistent database option for the demo?

@@ -11,6 +11,11 @@ The stress seed (`npm run db:seed:stress`) generates roughly 100,000 metric even
 
 It is behind a flag because the unit tests and the e2e suite must stay fast, and because the demo site should look like a small real site, not a load test.
 
+Measured on the development machine (SQLite 3.53, WAL mode): 2,000 sessions, 21,265 pageviews, 100,136 metric events in 0.8 seconds of in-process time (just over a second of wall time including startup).
+A second run inserted nothing and left every count identical.
+Running the normal demo seed on top added exactly its own 50 sessions, 104 pageviews, and 487 events.
+One SQLite detail worth knowing: rows skipped by `ON CONFLICT DO NOTHING` still consume `AUTOINCREMENT` ids, so after a re-run the sequence is ahead of `max(id)`; harmless, but it explains the gaps.
+
 Inserting that many rows teaches one SQLite fact immediately: a single `INSERT ... VALUES (...), (...)` is limited by the number of bound parameters (32,766), so the seed writes in chunks inside one transaction.
 One transaction, because SQLite commits are the expensive part, not the inserts.
 
@@ -48,6 +53,14 @@ The usual causes of a jump are worth knowing by name: a server-only module impor
 The loop is the honest version of a performance claim.
 A Lighthouse score is a lab run on one machine; the panel shows what real visitors to the public demo actually experienced, computed by the same code path as every other site's numbers.
 If the dashboard ships a layout shift, its own CLS card says so.
+
+## Why every new file exists (so far)
+
+- `scripts/seed-db.ts`: the CLI for both seeds (`db:seed`, `db:seed:stress`), kept out of `src/db/seed.ts` so the db module can import the seed for demo mode without an import cycle.
+- `src/db/synthetic/traffic.ts` gained a `profile` option (`demo` or `stress`) holding the id prefix, time window, and pageviews-per-session mix; the demo profile produces byte-identical output to before, verified by hashing the generated rows.
+- `src/db/seed.ts` gained `seedStress` and chunked inserts for both seeds.
+
+Remaining M8 pieces (virtualised sessions table with its measurement, the bundle budget, and the self-measurement panel) are added here when they land.
 
 ## Self-check
 

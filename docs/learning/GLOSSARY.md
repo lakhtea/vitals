@@ -192,6 +192,24 @@ The line where data from outside the system enters code that assumes it is well 
 A TypeScript-first runtime validation library.
 A schema both checks data at runtime and produces the static type, so a valid payload has exactly one definition.
 
+## Hosting
+
+**Cold start.**
+The first request served by a fresh serverless function instance, which must load code and, here, create and seed its database.
+Demo mode is built around the fact that nothing survives from the previous instance.
+
+**Serverless function instance.**
+One running copy of the app on a platform like Vercel, created on demand and recycled when idle.
+Several can run at once with no shared disk, which is why the demo's data is per instance.
+
+**Output file tracing.**
+The step where Next.js works out which files a route needs at runtime and copies only those into the deployable function.
+Files read with `fs` rather than imported, like the `drizzle/` migrations, must be listed explicitly.
+
+**Fixed-window rate limit.**
+Allowing at most N requests per key within each clock window (120 per minute per site here), then refusing with 429 and a `retry-after` until the window turns over.
+Simple, in memory, and enough to stop a loop from filling a demo instance's temp dir.
+
 ## Synthetic data
 
 **PRNG (pseudo-random number generator).**
