@@ -55,7 +55,8 @@ The usual causes of a jump are worth knowing by name: a server-only module impor
 
 Two Next 16 facts shaped the script.
 `next build` no longer prints First Load JS, and Turbopack writes no `app-build-manifest.json`, so `scripts/check-bundle-budget.ts` sums the deduplicated entry chunks for the route from the client reference manifest plus the root main files (raw bytes on disk, JavaScript only, not gzip) and cross-checks the total against Next's own `route-bundle-stats.json`, failing if they disagree.
-Measured baseline for `/`: 677,930 bytes, about 201 KB gzipped, in `bundle-budget.json`; the CI `bundle` job fails above 110% of it, and `npm run measure:bundle` moves the baseline on purpose.
+Measured baseline for `/` on the final M7 tree: 689,831 bytes across 10 chunks, about 200 KB gzipped, in `bundle-budget.json`; the CI `bundle` job fails above 110% of it, and `npm run measure:bundle` moves the baseline on purpose.
+(The first measurement, taken before the server-rendered page landed, was 677,930 bytes; the re-baseline is in the same commit as the number above so the file always matches the tree.)
 
 ## The self-instrumentation loop, end to end
 

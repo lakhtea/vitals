@@ -1,7 +1,27 @@
 # 07 - Streaming SSR and React Server Components
 
 > Milestone 7 moves the dashboard's first paint to the server.
-> The sections on how the technology works are written first; the "what was built" and file list are filled in when the integration lands.
+
+## What was built
+
+- `src/app/page.tsx` is a Server Component: it calls `connection()` so Next renders it per request, computes `asOf` once, fetches the sites and the dashboard data through the RSC Apollo client, and passes the result to a client view as props.
+- `src/app/apollo/`: the browser client factory and `ApolloWrapper` (used by the layout), and the RSC client registered with `registerApolloClient`, which executes queries in-process through a `SchemaLink` against the Pothos schema with the same `createContext()` the HTTP endpoint uses.
+- `src/dashboard/components/DashboardView.tsx` (`"use client"`): owns the site and filter state, renders the server-provided data on first render, and runs `useQuery` only when the user changes something, keeping the previous content on screen while the next result loads.
+- `src/dashboard/components/DashboardHeader.tsx`: the masthead shared by the view and the empty state.
+- `src/dashboard/queries.ts`: the two typed documents, imported by both the server page and the client view.
+- `e2e/ssr.spec.ts`: opens the overview with JavaScript disabled and asserts the seeded aggregates are already in the HTML.
+- Dates format in UTC on both sides (`src/dashboard/dates.ts`), so the server and client trees match.
+
+Measured on the real page: zero GraphQL requests on initial load, one after a filter change, zero hydration warnings, and the initial HTML contains the pages table (the no-JS test passes).
+
+## Why not PreloadQuery streaming, in the end
+
+The plan named `PreloadQuery` with `useSuspenseQuery`.
+It was built that way first and measured on the actual HTML: React outlines any completed Suspense boundary larger than about 12.8 KB into a hidden chunk at the end of the document, swapped into place by an inline script.
+A visitor without JavaScript sees the fallback forever, and the no-JS test fails; a route-level `loading.tsx` behaves the same way.
+Since the no-JS guarantee and "no refetch on hydrate" both matter more here than streaming one boundary, the page awaits the data and passes it down.
+`PreloadQuery` stays exported in `src/app/apollo` for per-section streaming later, which is the right tool once a page has a slow section worth deferring.
+The README decision entry states the tradeoff.
 
 ## Rendering, from first principles
 

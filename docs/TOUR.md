@@ -4,9 +4,8 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M6 complete** (M3, the browser library, is Lakhte's and in progress).
-Data model, migrations, seed, ingest endpoint, analytics API, schema snapshot, typed documents, and the dashboard UI with Storybook are in place.
-Prepared ahead of their milestones: the stress seed (M8), demo-mode plumbing (M10), and the Apollo Next.js integration modules (M7).
+Current state: **M9 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
+Data model, migrations, seeds, ingest endpoint, analytics API, schema snapshot, typed documents, dashboard UI with Storybook, server-rendered first paint, bundle budget, virtualised sessions table, axe and keyboard e2e, and demo mode are in place.
 
 ## The one-paragraph version
 
@@ -26,7 +25,7 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   ├── providers.tsx     Apollo Client + ApolloProvider
 │   │   ├── apollo/           Apollo <-> Next.js integration: browser wrapper, RSC client (SchemaLink)
 │   │   ├── DemoBanner.tsx    one-line banner, rendered only when VITALS_DEMO_MODE=1
-│   │   └── page.tsx          the dashboard overview: site picker, FilterBar, MetricCards, PagesTable, SessionsTable
+│   │   └── page.tsx          Server Component: fetches in-process, hands props to DashboardView
 │   ├── graphql/
 │   │   ├── builder.ts        the Pothos builder (plugins, scalar types)
 │   │   ├── scalars.ts        DateTime
@@ -38,8 +37,9 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler, demo rate limiter + tests
 │   ├── config/               demo-mode flag
-│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), filters, sortPages, chartScale, labels
-│   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions
+│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels
+│   │   └── components/DashboardView.tsx   "use client": site + filter state, useQuery on change only
+│   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions, formatting
 │   └── db/
 │       ├── schema.ts         the four tables (sites, sessions, pageviews, metric_events)
 │       ├── index.ts          open SQLite, run migrations, makeDb / getDb
@@ -48,7 +48,8 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │       ├── synthetic/        deterministic fake-traffic generator
 │       └── seed.ts           idempotent demo seed + stress seed (CLI: scripts/seed-db.ts)
 ├── drizzle/                  generated migrations + snapshots (npm run db:generate)
-├── scripts/                  seed-db.ts (db:seed, db:seed:stress), measure-query-count.ts, print-schema.ts
+├── scripts/                  seed-db.ts, measure-query-count.ts, print-schema.ts, check-bundle-budget.ts, measure-render.ts
+├── bundle-budget.json        committed First Load JS baseline for "/" (CI fails above +10%)
 ├── .storybook/               Storybook 10: nextjs-vite framework, a11y + vitest addons
 ├── schema.graphql            the schema snapshot; a test and CI fail if it drifts from src/graphql
 ├── codegen.ts                GraphQL Codegen config (npm run codegen)
@@ -67,6 +68,11 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 
 Browser `page.tsx` -> Apollo `useQuery` -> `POST /api/graphql` -> `route.ts` -> Yoga -> Pothos resolvers in `schema.ts` -> `db/queries/pages.ts` -> Drizzle -> better-sqlite3 -> `.data/vitals.db`.
 Chapter 00 walks this path step by step; chapter 01 explains the tables it reads.
+
+## Follow the first paint
+
+Request -> `page.tsx` (Server Component) -> RSC Apollo client -> `SchemaLink` -> Pothos resolvers -> SQLite -> HTML with the data already in it -> `DashboardView` hydrates with the same props (no fetch) -> a filter change runs one `POST /api/graphql`.
+Chapter 07 explains RSC, hydration, and why the page awaits data instead of streaming it.
 
 ## Follow a delivery
 
@@ -93,7 +99,7 @@ All timestamps are epoch milliseconds.
 | ----- | -------- | ------------ | ------- |
 | Unit | `src/**/*.test.ts` | schema executed in-process, `:memory:` SQLite | `npm run test` |
 | Stories | `src/**/*.stories.tsx` | each story in headless Chromium: render, play function, axe | `npm run test:storybook` |
-| E2E | `e2e/*.spec.ts` | real dev server + Chromium, `.data/e2e.db` | `npm run test:e2e` |
+| E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path) | real dev server + Chromium, `.data/e2e.db` | `npm run test:e2e` |
 
 CI runs both plus `typecheck` and `lint`.
 The rule for what deserves a test is in TESTING_RULES.md.
@@ -111,6 +117,7 @@ npm install
 npm run db:seed          # or npm run db:seed:stress for ~100k events
 npm run dev              # http://localhost:3000, GraphiQL at /api/graphql
 npm run storybook        # http://localhost:6006
+npm run check:bundle     # after npm run build: First Load JS vs the committed baseline
 ```
 
 ## Learning chapters
@@ -122,7 +129,11 @@ npm run storybook        # http://localhost:6006
 - [04 - N+1 and DataLoader](learning/04-n-plus-one-and-dataloader.md): the naive query log line by line, exactly what DataLoader batches and when, measured before/after.
 - [05 - Codegen and the schema snapshot](learning/05-codegen-and-schema-snapshot.md): what the generator emits, how `useQuery` becomes typed, and why CI fails on drift.
 - [06 - Dashboard UI and Storybook](learning/06-dashboard-ui-and-storybook.md): the five components, stories and play functions, interaction tests versus e2e, axe per story.
-- Drafts ahead of their milestones: [07](learning/07-streaming-ssr-and-rsc.md), [08](learning/08-performance-on-itself.md), [09](learning/09-accessibility.md), [10](learning/10-deploy-and-demo-mode.md), [99 - use as a template](learning/99-use-as-template.md).
+- [07 - Streaming SSR and RSC](learning/07-streaming-ssr-and-rsc.md): rendering from first principles, hydration, why the page awaits data, the no-JS proof.
+- [08 - Performance on itself](learning/08-performance-on-itself.md): stress seed, virtualisation, bundle budget, all measured; the self-measurement loop.
+- [09 - Accessibility](learning/09-accessibility.md): what axe catches and cannot, the keyboard path, chart fallbacks.
+- [10 - Deploy and demo mode](learning/10-deploy-and-demo-mode.md): the hosting decision, what demo mode isolates, what real hosting would change.
+- [99 - Use this repo as a template](learning/99-use-as-template.md): keep/replace lists and the order to replace things in (draft, refreshed at M11).
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
 ## Environment variables

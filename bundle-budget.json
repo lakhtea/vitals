@@ -1,6 +1,6 @@
 {
   "route": "/",
-  "firstLoadJsBytes": 677930,
+  "firstLoadJsBytes": 689831,
   "tolerancePercent": 10,
   "measuredWith": "npm run build && npm run measure:bundle"
 }

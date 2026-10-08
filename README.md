@@ -9,8 +9,8 @@ to explore them. GraphQL end-to-end: code-first schema with Pothos, served by
 GraphQL Yoga inside Next.js, consumed through Apollo Client's normalized
 cache, persisted with Drizzle + SQLite.
 
-**Live demo:** _(coming — seeded synthetic traffic, plus the dashboard
-measuring itself)_
+**Live demo:** _(coming: demo mode is built and verified locally; the deploy
+needs the owner's Vercel account, see docs/NEEDS-LAKHTE.md)_
 
 ## Why this exists
 
@@ -176,6 +176,38 @@ so the unit loop never needs a browser. Tradeoff: one more moving part in
 `vitest.config.mts`; in exchange CI reuses the Playwright Chromium already
 installed for e2e.
 
+### Hosting: Vercel with an ephemeral, seeded SQLite per cold start
+The dashboard is single-tenant and its database is one SQLite file, which no
+serverless host keeps between invocations. Options: a host with a disk (a
+Fly.io volume, a VPS), which persists data but adds a machine to run, patch,
+and pay for; libSQL/Turso, which keeps the SQL but swaps the embedded
+synchronous driver for a network one, so every `.get()`/`.run()` in the query
+layer becomes an `await` and the demo depends on a second vendor; or Vercel
+with a "demo mode" that opens the database in the function's temp dir,
+migrates and seeds it on first open, and accepts that it vanishes with the
+instance. Choice: Vercel plus demo mode behind one env var,
+`VITALS_DEMO_MODE=1`, which also hides GraphiQL and rate-caps `/api/collect`
+(120 batches per minute per site, in memory, 429 with `retry-after`).
+Self-hosters are untouched: the switch only changes where the file lives and
+whether it is seeded. Tradeoff: the public demo forgets everything on a cold
+start, and concurrent warm instances each hold their own copy, so a beacon
+sent to one instance may not appear in a dashboard served by another; the
+self-measurement panel therefore demonstrates the loop, not durable history.
+
+### Hand-rolled fixed-row-height windowing over @tanstack/react-virtual
+Problem: 2,000 session rows put 2,001 `<tr>` in the DOM (measured) for a
+viewport that shows fourteen. Options: TanStack Virtual (measured, variable
+row heights, scroll-to-index, ~5 KB gzip into the very bundle the new budget
+guards), or a window computed from the scroll offset over rows pinned to one
+height. Choice: hand-rolled. The table is five single-line, ellipsised cells,
+so a fixed 36 px row is already the design; the whole mechanism is one pure
+function (`rowWindow.ts`, unit-tested), two spacer rows that keep the
+scrollbar honest, `aria-rowcount`/`aria-rowindex` so screen readers hear the
+true total, and a sticky header inside the same `<table>`, which keeps axe
+green. Tradeoff: row height is a hard constraint (no wrapping cells), there is
+no scroll-to-row API, and find-in-page sees only rendered rows; if a table
+with variable heights arrives, TanStack is the upgrade path, not a rewrite.
+
 ### Integer epoch-millisecond timestamps
 SQLite has no date type. Options: ISO 8601 text (readable, slower to
 compare, 24 bytes), Unix seconds (loses sub-second precision the browser
@@ -247,9 +279,10 @@ would make React throw the server HTML away.
 | ---- | ------ | ----- |
 | `site { pages { metrics } }` SQL statements, N = 10 seeded pages ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | 12 = 2 + N (naive) | 3 (DataLoader) |
 | `site { sessions(limit: 20) { pageviews } }` SQL statements ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | not measured (built batched from the start) | 3 (DataLoader) |
-| Sessions table render, stress seed | TBD | TBD (virtualized) |
-| First-load JS, dashboard route | TBD | budget enforced in CI |
-| This dashboard's own p75 LCP / CLS / INP | — | TBD (self-instrumented) |
+| Sessions table with 2,000 rows: `<tr>` in the DOM / median time to first row, 5 runs ([method](./scripts/measure-render.ts), `npm run build-storybook && npm run measure:render`) | 2,001 / 155 ms | 26 / 91 ms (windowed) |
+| First Load JS for `/`, raw bytes, JS only ([method](./scripts/check-bundle-budget.ts), `npm run build && npm run measure:bundle`) | 689,831 B (about 200 KB gzip) | CI fails above +10% ([baseline](./bundle-budget.json)) |
+| Stress seed: 2,000 sessions / 21,265 pageviews / 100,136 events (`npm run db:seed:stress`) | — | 0.8 s to insert, idempotent on rerun |
+| This dashboard's own p75 LCP / CLS / INP | — | TBD (needs the M3 library) |
 
 ## Collecting data: `POST /api/collect`
 
@@ -281,6 +314,7 @@ One request carries one pageview's worth of metrics. Send it with
 | 422 | `invalid_payload` | Shape, enum, or range violation; `error.issues[].path` names the field (e.g. `events.0.value`). |
 | 413 | `batch_too_large` / `payload_too_large` | More than 25 events, or more than 64 KB. |
 | 404 | `unknown_site` | `siteId` is not configured. |
+| 429 | `rate_limited` | Demo mode only: more than 120 batches per minute for one site; honour `retry-after`. |
 
 Ids for the session, pageview, and each event are chosen by the sender
 (`web-vitals` provides `metric.id`); the server dedupes on them, which is

@@ -209,11 +209,11 @@ frameworks).
   two interaction tests pass in CI; chapter 06 done.
 
 ### M7 — App Router depth: streaming SSR + RSC boundaries
-- [ ] Integrate `@apollo/client-integration-nextjs`; first paint of the overview streams from the server, filters/interactions stay client-side
-- [ ] Explicit, minimal server/client split ("use client" only where interaction demands it); short README section documenting the boundary
-- [ ] Suspense loading UI matching final layout (no layout shift — this app of all apps must not ship CLS)
-- [ ] e2e asserts the overview renders with JS disabled (initial HTML contains seeded aggregates)
-- [ ] Chapter 07: RSC vs client components from first principles, what streams and when, what hydration is, why the no-JS test proves the SSR claim
+- [x] Integrate `@apollo/client-integration-nextjs`; first paint of the overview streams from the server, filters/interactions stay client-side
+- [x] Explicit, minimal server/client split ("use client" only where interaction demands it); short README section documenting the boundary
+- [x] Suspense loading UI matching final layout (no layout shift — this app of all apps must not ship CLS)
+- [x] e2e asserts the overview renders with JS disabled (initial HTML contains seeded aggregates)
+- [x] Chapter 07: RSC vs client components from first principles, what streams and when, what hydration is, why the no-JS test proves the SSR claim
 - DoD: server-rendered HTML carries real content, verified by e2e; decision
   entry on the integration approach; chapter 07 done.
 
@@ -221,8 +221,8 @@ frameworks).
 - [x] Stress seed behind a flag (~100k metric events across ~2k sessions); virtualize SessionsTable and PagesTable (TanStack Virtual or hand-rolled; log the decision); measure render before/after with a committed method
 - [ ] Self-instrumentation in production mode: the dashboard loads its own built library and reports into itself; a small "This site, measured by itself" panel shows the dashboard's own p75s
 - [x] Bundle budget: record the dashboard route's first-load JS; CI fails if it exceeds baseline + 10%
-- [ ] All measured numbers in README's metrics section
-- [ ] Chapter 08: what virtualization actually does, how the measurements were taken, how to read the bundle analysis, and how the self-instrumentation loop works end to end (Lakhte's library → collect → GraphQL → panel)
+- [x] All measured numbers in README's metrics section
+- [x] Chapter 08: what virtualization actually does, how the measurements were taken, how to read the bundle analysis, and how the self-instrumentation loop works end to end (Lakhte's library → collect → GraphQL → panel)
 - DoD: every number measured with committed method; CI enforces the budget;
   the self-measurement panel shows real collected data; chapter 08 done.
 
@@ -234,10 +234,10 @@ frameworks).
 - DoD: axe e2e green in CI; keyboard e2e green; chapter 09 done.
 
 ### M10 — Deploy + demo mode
-- [ ] Decide hosting for a single-tenant SQLite app (likely Vercel + demo mode: ephemeral seeded DB per cold start, "demo data resets" banner; alternative libSQL/Turso). Write the decision entry BEFORE building
+- [x] Decide hosting for a single-tenant SQLite app (likely Vercel + demo mode: ephemeral seeded DB per cold start, "demo data resets" banner; alternative libSQL/Turso). Write the decision entry BEFORE building
 - [ ] Deploy; seeded demo + self-instrumentation live at a public URL; GraphiQL disabled or read-only in demo; /api/collect rate-capped in demo
 - [ ] README: live demo link at top, badge `<USER>` swapped to `lakhtea`, screenshots heavy on substance
-- [ ] Chapter 10: the deploy decision explained, what demo mode isolates and why, what would change for real multi-user hosting
+- [x] Chapter 10: the deploy decision explained, what demo mode isolates and why, what would change for real multi-user hosting
 - DoD: public URL works from a clean browser; the self-measurement panel is
   live; chapter 10 done.
 
@@ -377,3 +377,26 @@ decisions logged, anything blocked.
   verified in-process with no HTTP hop). Draft chapters 07-10 and 99 written
   (concept sections; file lists filled when each milestone lands). Next: M7
   wiring (page -> server component + PreloadQuery, no-JS e2e), then M9.
+- 2026-10-07/08 (final hour, Claude Code, multi-agent) — M7 complete:
+  page.tsx is a Server Component (connection() for per-request render,
+  awaited data via RSC Apollo client over SchemaLink, props to a client
+  DashboardView, useQuery only on change; UTC dates for hydration
+  determinism). Decision logged: awaited props over PreloadQuery streaming
+  (React outlines completed Suspense boundaries > ~12.8 KB behind an inline
+  script, so no-JS visitors would see the fallback forever; measured on the
+  HTML). e2e/ssr.spec.ts (JS off) proves the SSR claim; 0 GraphQL requests
+  on load, 0 hydration warnings. M8 code complete: bundle budget (final
+  baseline 689,831 B raw for "/", CI job `bundle`, +10%), virtualised
+  SessionsTable (2,001 -> 26 rows, 155 -> 91 ms median, committed
+  measure-render.ts), stress seed; the self-measurement panel waits on M3.
+  M9 complete: axe (0 WCAG 2.1 A/AA violations in two states; gates on
+  serious/critical) + keyboard path (typeahead on selects: Chromium/macOS
+  opens the popup on ArrowDown); "open a session" has no detail view yet,
+  so the path ends at the next control (noted in chapter 09). M10 code
+  complete + decision logged; deploy, env vars, and verification steps are
+  in docs/NEEDS-LAKHTE.md. M11 prep: build-story draft awaiting sign-off,
+  repo description/topics suggested, template chapter 99 drafted. Final
+  tree: typecheck, lint, 27 unit, 18 story, 6 e2e, bundle check all green.
+  Visual check of the overview done (screenshot reviewed). Blocked on
+  Lakhte: M3 library (then dogfooding + self-measurement panel), M10
+  account/deploy, M11 push/publish/sign-off.
