@@ -154,11 +154,11 @@ Replace the leftover tracker domain entirely. Nothing tracker-shaped survives.
   verify); all tests green on the new domain; chapter 01 done.
 
 ### M2 — Ingestion path
-- [ ] `POST /api/collect`: accepts a sendBeacon-compatible JSON batch (session metadata + metric events), validates shape and metric names/ranges with typed errors, writes via Drizzle
-- [ ] Batching semantics: one request may carry several events; dedupe by (pageview, metric, id) so retries are safe
-- [ ] Unit tests: happy path, malformed payload, unknown metric, oversized batch (cap documented), duplicate delivery
-- [ ] e2e: a scripted fake session posts a batch and the dashboard shows it
-- [ ] Chapter 02: ingestion — why sendBeacon exists, why batching, why idempotent delivery matters, what the validation protects against
+- [x] `POST /api/collect`: accepts a sendBeacon-compatible JSON batch (session metadata + metric events), validates shape and metric names/ranges with typed errors, writes via Drizzle
+- [x] Batching semantics: one request may carry several events; dedupe by (pageview, metric, id) so retries are safe
+- [x] Unit tests: happy path, malformed payload, unknown metric, oversized batch (cap documented), duplicate delivery
+- [x] e2e: a scripted fake session posts a batch and the dashboard shows it
+- [x] Chapter 02: ingestion — why sendBeacon exists, why batching, why idempotent delivery matters, what the validation protects against
 - DoD: collect endpoint documented in README (payload example), all tests
   green, dedupe proven by a test; chapter 02 done.
 
@@ -323,3 +323,17 @@ decisions logged, anything blocked.
   consistent, page counts add up, root ordering) + 1 e2e. Decisions logged:
   migrations, idempotency mechanism, thresholds from web-vitals, epoch-ms
   timestamps. Chapter 01 written; TOUR + glossary updated. Next: M2.
+- 2026-10-07 (night, Claude Code) — M2 complete. `POST /api/collect` in
+  `src/collect/` (zod payload contract built per request so "not in the
+  future" uses a clock; transaction with conflict-ignoring inserts; typed
+  error codes invalid_json 400 / invalid_payload 422 with issue paths /
+  batch_too_large + payload_too_large 413 / unknown_site 404; 202 returns
+  {inserted, duplicates}); text body accepted without content-type and open
+  CORS + OPTIONS so sendBeacon works cross-origin; rating recomputed
+  server-side; MAX_PLAUSIBLE_VALUE per metric added to src/vitals/metrics.
+  Caps documented: 25 events, 64 KB. Tests: 9 unit in handle.test.ts (happy
+  path + session reuse, exact duplicate delivery, six rejections that store
+  nothing, CORS) + e2e collect.spec.ts (posted batch appears on dashboard).
+  README gained the payload example + status table and a decision entry.
+  Chapter 02, TOUR, glossary updated. Next: M3 brief (Lakhte's build), then
+  M4.

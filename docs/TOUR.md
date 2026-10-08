@@ -4,9 +4,9 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M1 complete.**
-The RUM data model is in place with real migrations and a deterministic synthetic seed.
-The dashboard lists measured pages with their traffic counts.
+Current state: **M2 complete.**
+Data model, migrations, seed, and the ingest endpoint are in place.
+The dashboard lists measured pages with their traffic counts; real batches posted to `/api/collect` appear alongside the seed.
 
 ## The one-paragraph version
 
@@ -21,10 +21,12 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 ├── src/
 │   ├── app/                  Next.js App Router
 │   │   ├── api/graphql/      GraphQL endpoint (Yoga)
+│   │   ├── api/collect/      ingest endpoint (two-line glue over src/collect)
 │   │   ├── layout.tsx        HTML shell, wraps pages in Providers
 │   │   ├── providers.tsx     Apollo Client + ApolloProvider
 │   │   └── page.tsx          the dashboard home: pages table
 │   ├── graphql/              Pothos builder, context, schema, schema tests
+│   ├── collect/              ingest: zod payload contract, persistence, HTTP handler + tests
 │   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions
 │   └── db/
 │       ├── schema.ts         the four tables (sites, sessions, pageviews, metric_events)
@@ -48,6 +50,11 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 
 Browser `page.tsx` -> Apollo `useQuery` -> `POST /api/graphql` -> `route.ts` -> Yoga -> Pothos resolvers in `schema.ts` -> `db/queries/pages.ts` -> Drizzle -> better-sqlite3 -> `.data/vitals.db`.
 Chapter 00 walks this path step by step; chapter 01 explains the tables it reads.
+
+## Follow a delivery
+
+Browser `sendBeacon` -> `POST /api/collect` -> `route.ts` -> `collect/handle.ts` (size, JSON, zod, site) -> `collect/ingest.ts` (one transaction, conflict-ignoring inserts) -> `202 { inserted, duplicates }`.
+Chapter 02 explains each step and the error codes.
 
 ## The data model in one breath
 
@@ -79,6 +86,7 @@ npm run dev          # http://localhost:3000, GraphiQL at /api/graphql
 
 - [00 - The walking skeleton](learning/00-the-skeleton.md): every file in the starting repo and why it exists.
 - [01 - The data model](learning/01-data-model.md): the four tables, migrations, and how the seed fakes realistic traffic.
+- [02 - Ingestion](learning/02-ingestion.md): sendBeacon, batching, idempotent delivery, and what validation protects against.
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
 ## Environment variables

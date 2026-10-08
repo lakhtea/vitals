@@ -117,6 +117,36 @@ The next generate run diffs the current schema against it, so it must be committ
 A value computed over many rows, such as a count or a percentile per path.
 GraphQL types like `Page` are aggregates rather than stored rows, which is why they have no `id`.
 
+## Ingestion
+
+**sendBeacon.**
+`navigator.sendBeacon(url, data)` asks the browser to deliver a small POST on the page's behalf and returns immediately, with no response.
+It is the reliable way to send data while a page is unloading.
+
+**keepalive fetch.**
+`fetch(url, { keepalive: true })` is a request allowed to outlive the page, like a beacon but with a readable response.
+The browser library's fallback when `sendBeacon` is unavailable or refuses the payload.
+
+**CORS preflight.**
+An `OPTIONS` request the browser sends before a cross-origin request that is not "simple" (for example one with `Content-Type: application/json`).
+Beacons sent as plain text avoid it, which is why the collect endpoint does not require a JSON content type.
+
+**pagehide / visibilitychange.**
+The two browser events that signal a page is going away or being hidden.
+The library flushes on both because browsers disagree about which fires reliably, which is one reason delivery must be idempotent.
+
+**bfcache (back/forward cache).**
+The browser keeping a whole page alive in memory so Back is instant.
+A restored page reports its metrics again with new `web-vitals` ids.
+
+**Trust boundary.**
+The line where data from outside the system enters code that assumes it is well formed.
+`POST /api/collect` is this repo's main one, and every rule in `src/collect/payload.ts` exists to hold it.
+
+**Zod.**
+A TypeScript-first runtime validation library.
+A schema both checks data at runtime and produces the static type, so a valid payload has exactly one definition.
+
 ## Synthetic data
 
 **PRNG (pseudo-random number generator).**

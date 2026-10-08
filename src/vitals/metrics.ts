@@ -25,6 +25,19 @@ export const METRIC_THRESHOLDS: Record<MetricName, MetricRatingThresholds> = {
   FCP: FCPThresholds,
 };
 
+/**
+ * Upper bounds on values the ingest endpoint will believe. Anything above is a
+ * broken clock or a bug, not a user experience: a minute-long LCP or a CLS of
+ * 10 would only poison the percentiles.
+ */
+export const MAX_PLAUSIBLE_VALUE: Record<MetricName, number> = {
+  LCP: 60_000,
+  CLS: 10,
+  INP: 60_000,
+  TTFB: 60_000,
+  FCP: 60_000,
+};
+
 export const rateMetric = ({ name, value }: { name: MetricName; value: number }): MetricRating => {
   const [goodUpTo, needsImprovementUpTo] = METRIC_THRESHOLDS[name];
   if (value <= goodUpTo) {

@@ -92,6 +92,18 @@ a dependency bump, not a code audit. Tradeoff: a browser-oriented package is
 now a server dependency; its threshold modules are pure constants and were
 verified to import cleanly in Node.
 
+### Collect endpoint: text body, open CORS, one pageview per batch
+`sendBeacon` only avoids a CORS preflight (and survives `pagehide` on every
+browser) when the body is a plain string, i.e. `text/plain`. Options: require
+`application/json` (cleaner, breaks the beacon path), accept any content type
+and parse the text (what every RUM vendor does), or add a proxy layer. Choice:
+parse text, answer `OPTIONS`, allow any origin. Batches are one pageview, not
+one session, so SPAs flush per navigation and a closed tab loses at most one
+page. Tradeoff: no origin allow-list and no auth; `siteId` identifies but
+does not authenticate, consistent with the no-multi-tenant scope. Rating is
+recomputed server-side so stored ratings always match the dashboard's
+thresholds.
+
 ### Integer epoch-millisecond timestamps
 SQLite has no date type. Options: ISO 8601 text (readable, slower to
 compare, 24 bytes), Unix seconds (loses sub-second precision the browser
@@ -108,6 +120,43 @@ CLI without `datetime(col/1000, 'unixepoch')`.
 | Sessions table render, stress seed | TBD | TBD (virtualized) |
 | First-load JS, dashboard route | TBD | budget enforced in CI |
 | This dashboard's own p75 LCP / CLS / INP | — | TBD (self-instrumented) |
+
+## Collecting data: `POST /api/collect`
+
+One request carries one pageview's worth of metrics. Send it with
+`navigator.sendBeacon` (as a plain string, so no CORS preflight) or
+`fetch(..., { keepalive: true })`. No content-type is required.
+
+```json
+{
+  "siteId": "demo",
+  "session": {
+    "id": "6f1c…",            "startedAt": 1759838400000,
+    "deviceClass": "mobile",  "connectionType": "4g",
+    "userAgentFamily": "Chrome"
+  },
+  "pageview": { "id": "9a2e…", "path": "/pricing", "startedAt": 1759838400000 },
+  "events": [
+    { "id": "v4-1759838400000-1", "name": "LCP", "value": 2612.4, "recordedAt": 1759838402612 },
+    { "id": "v4-1759838400000-2", "name": "CLS", "value": 0.03,   "recordedAt": 1759838409000 },
+    { "id": "v4-1759838400000-3", "name": "INP", "value": 184,    "recordedAt": 1759838415000 }
+  ]
+}
+```
+
+| Status | `error.code` | Meaning |
+| ------ | ------------ | ------- |
+| 202 | | Stored. Body: `{ "inserted": n, "duplicates": d }`. Delivering the same batch again is safe. |
+| 400 | `invalid_json` | Body is not JSON. |
+| 422 | `invalid_payload` | Shape, enum, or range violation; `error.issues[].path` names the field (e.g. `events.0.value`). |
+| 413 | `batch_too_large` / `payload_too_large` | More than 25 events, or more than 64 KB. |
+| 404 | `unknown_site` | `siteId` is not configured. |
+
+Ids for the session, pageview, and each event are chosen by the sender
+(`web-vitals` provides `metric.id`); the server dedupes on them, which is
+what makes retries and double flushes harmless. Ratings are recomputed
+server-side from the value. Full reasoning in
+[docs/learning/02-ingestion.md](./docs/learning/02-ingestion.md).
 
 ## Development
 
