@@ -227,6 +227,32 @@ The default in the App Router; covered in depth in M7.
 The step where React attaches event handlers to server-rendered HTML so it becomes interactive.
 Covered in depth in M7.
 
+## UI
+
+**CSS Modules.**
+Stylesheets named `X.module.css` whose class names are rewritten to be unique per file at build time.
+Styles cannot leak between components, and there is no runtime cost.
+
+**Design token.**
+A named CSS custom property (`--rating-good`, `--surface`) defined once on `:root` with a dark-mode override.
+Components reference tokens, never raw colours, so themes change in one place.
+
+**Controlled component.**
+A component that owns no state: it renders the `value` it is given and calls `onChange` with the next value.
+`FilterBar` is one, which is what makes it testable in isolation.
+
+**Story.**
+One named, rendered state of one component with fixed props, written in Component Story Format (CSF).
+Storybook catalogues stories and the Vitest addon runs each one as a test.
+
+**Play function.**
+A script attached to a story that runs after it renders: query the DOM, interact with `userEvent`, assert.
+The repo's interaction tests live here rather than in Playwright.
+
+**axe.**
+The accessibility rules engine (axe-core) that inspects rendered DOM for mechanically checkable WCAG failures.
+Run per story by the a11y addon with violations as failures, and per page by Playwright in M9.
+
 ## Testing and tooling
 
 **Vitest.**

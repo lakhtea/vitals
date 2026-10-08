@@ -23,7 +23,7 @@ jobs:
       - run: npm run codegen:check
 
   e2e:
-    name: E2E (Playwright)
+    name: Storybook tests + E2E (Playwright)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +33,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # Storybook interaction + a11y tests run in the same Chromium.
+      - run: npm run test:storybook
       - run: npm run test:e2e
         env:
           CI: true

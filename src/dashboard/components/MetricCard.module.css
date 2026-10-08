@@ -1,0 +1,72 @@
+.card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.name {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.label {
+  font-size: 0.8rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A standalone figure reads better with proportional digits; tabular is for columns. */
+.value {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+  letter-spacing: -0.01em;
+}
+
+.pill {
+  justify-self: start;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.card[data-rating="good"] .pill {
+  color: var(--rating-good);
+  background: color-mix(in srgb, var(--rating-good) 12%, transparent);
+}
+
+.card[data-rating="needs-improvement"] .pill {
+  color: var(--rating-needs-improvement);
+  background: color-mix(in srgb, var(--rating-needs-improvement) 12%, transparent);
+}
+
+.card[data-rating="poor"] .pill {
+  color: var(--rating-poor);
+  background: color-mix(in srgb, var(--rating-poor) 12%, transparent);
+}
+
+.meta {
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

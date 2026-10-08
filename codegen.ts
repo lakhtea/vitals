@@ -12,6 +12,8 @@ const config: CodegenConfig = {
       // Fragment masking adds a useFragment indirection this small app does
       // not need yet; plain result types read better in a teaching codebase.
       presetConfig: { fragmentMasking: false },
+      // DateTime travels as an ISO 8601 string (see src/graphql/scalars.ts).
+      config: { scalars: { DateTime: "string" } },
     },
   },
   ignoreNoDocuments: true,

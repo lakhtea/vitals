@@ -4,9 +4,9 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M5 complete** (M3, the browser library, is Lakhte's and in progress).
-Data model, migrations, seed, ingest endpoint, analytics API (percentiles, rating buckets, DataLoader-batched relations), committed schema snapshot, and typed client documents are in place.
-The dashboard UI still shows the M1 pages table; M6 builds the real one.
+Current state: **M6 complete** (M3, the browser library, is Lakhte's and in progress).
+Data model, migrations, seed, ingest endpoint, analytics API, schema snapshot, typed documents, and the dashboard UI with Storybook are in place.
+Prepared ahead of their milestones: the stress seed (M8), demo-mode plumbing (M10), and the Apollo Next.js integration modules (M7).
 
 ## The one-paragraph version
 
@@ -24,7 +24,9 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   ├── api/collect/      ingest endpoint (two-line glue over src/collect)
 │   │   ├── layout.tsx        HTML shell, wraps pages in Providers
 │   │   ├── providers.tsx     Apollo Client + ApolloProvider
-│   │   └── page.tsx          the dashboard home: pages table
+│   │   ├── apollo/           Apollo <-> Next.js integration: browser wrapper, RSC client (SchemaLink)
+│   │   ├── DemoBanner.tsx    one-line banner, rendered only when VITALS_DEMO_MODE=1
+│   │   └── page.tsx          the dashboard overview: site picker, FilterBar, MetricCards, PagesTable, SessionsTable
 │   ├── graphql/
 │   │   ├── builder.ts        the Pothos builder (plugins, scalar types)
 │   │   ├── scalars.ts        DateTime
@@ -34,7 +36,9 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   ├── schema.ts         Page, Site, root queries, toSchema()
 │   │   ├── generated/        GraphQL Codegen output: graphql() + TypedDocumentNodes (committed, never edited)
 │   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
-│   ├── collect/              ingest: zod payload contract, persistence, HTTP handler + tests
+│   ├── collect/              ingest: zod payload contract, persistence, HTTP handler, demo rate limiter + tests
+│   ├── config/               demo-mode flag
+│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), filters, sortPages, chartScale, labels
 │   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions
 │   └── db/
 │       ├── schema.ts         the four tables (sites, sessions, pageviews, metric_events)
@@ -42,9 +46,10 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions
 │       ├── query-counter.ts  counts statements; behind every README query number
 │       ├── synthetic/        deterministic fake-traffic generator
-│       └── seed.ts           idempotent demo seed (npm run db:seed)
+│       └── seed.ts           idempotent demo seed + stress seed (CLI: scripts/seed-db.ts)
 ├── drizzle/                  generated migrations + snapshots (npm run db:generate)
-├── scripts/                  measure-query-count.ts (npm run measure:queries), print-schema.ts
+├── scripts/                  seed-db.ts (db:seed, db:seed:stress), measure-query-count.ts, print-schema.ts
+├── .storybook/               Storybook 10: nextjs-vite framework, a11y + vitest addons
 ├── schema.graphql            the schema snapshot; a test and CI fail if it drifts from src/graphql
 ├── codegen.ts                GraphQL Codegen config (npm run codegen)
 ├── e2e/                      Playwright specs
@@ -87,6 +92,7 @@ All timestamps are epoch milliseconds.
 | Level | Location | Runs against | Command |
 | ----- | -------- | ------------ | ------- |
 | Unit | `src/**/*.test.ts` | schema executed in-process, `:memory:` SQLite | `npm run test` |
+| Stories | `src/**/*.stories.tsx` | each story in headless Chromium: render, play function, axe | `npm run test:storybook` |
 | E2E | `e2e/*.spec.ts` | real dev server + Chromium, `.data/e2e.db` | `npm run test:e2e` |
 
 CI runs both plus `typecheck` and `lint`.
@@ -102,8 +108,9 @@ The rule for what deserves a test is in TESTING_RULES.md.
 
 ```bash
 npm install
-npm run db:seed
-npm run dev          # http://localhost:3000, GraphiQL at /api/graphql
+npm run db:seed          # or npm run db:seed:stress for ~100k events
+npm run dev              # http://localhost:3000, GraphiQL at /api/graphql
+npm run storybook        # http://localhost:6006
 ```
 
 ## Learning chapters
@@ -114,6 +121,8 @@ npm run dev          # http://localhost:3000, GraphiQL at /api/graphql
 - [03 - The browser library: brief](learning/03-library-brief.md): Lakhte's build; the contract, reading list, acceptance criteria, and pitfalls.
 - [04 - N+1 and DataLoader](learning/04-n-plus-one-and-dataloader.md): the naive query log line by line, exactly what DataLoader batches and when, measured before/after.
 - [05 - Codegen and the schema snapshot](learning/05-codegen-and-schema-snapshot.md): what the generator emits, how `useQuery` becomes typed, and why CI fails on drift.
+- [06 - Dashboard UI and Storybook](learning/06-dashboard-ui-and-storybook.md): the five components, stories and play functions, interaction tests versus e2e, axe per story.
+- Drafts ahead of their milestones: [07](learning/07-streaming-ssr-and-rsc.md), [08](learning/08-performance-on-itself.md), [09](learning/09-accessibility.md), [10](learning/10-deploy-and-demo-mode.md), [99 - use as a template](learning/99-use-as-template.md).
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
 ## Environment variables
@@ -121,3 +130,4 @@ npm run dev          # http://localhost:3000, GraphiQL at /api/graphql
 | Variable | Default | Used by |
 | -------- | ------- | ------- |
 | `VITALS_DB_PATH` | `.data/vitals.db` | app, seed, drizzle-kit; Playwright sets `.data/e2e.db` |
+| `VITALS_DEMO_MODE` | unset | `1` = temp-dir database seeded on open, GraphiQL off, collect rate-limited, banner shown |

@@ -144,6 +144,38 @@ memoisation pattern is the transferable skill this repo exists to
 demonstrate. The percentile SQL still accepts many sites and paths, so the
 batch is one statement per distinct time range, not per page.
 
+### One `TrafficFilter` input, windowed on pageview start
+Every traffic field (`pages`, `metrics`, `sessions`) takes the same optional
+`TrafficFilter { from, to, deviceClass, connectionType }` instead of four
+loose arguments each, so a client declares one variable and passes it
+everywhere. The time window is half-open and applies to when the navigation
+started (session start for session lists), not to when each metric was
+recorded. Options considered: window on `recordedAt` (an LCP recorded two
+seconds after midnight would belong to a different day than its pageview;
+the pages list and the metrics would disagree for narrow windows). Tradeoff:
+the `(name, recorded_at)` index is now less useful; revisit with the M8
+stress seed.
+
+### CSS Modules and hand-rolled SVG, no UI or chart library
+Problem: five dashboard components need consistent styling and one chart.
+Options: a component library (fast, but hides the work this repo exists to
+show and adds a large dependency), vanilla-extract (typed styles, extra
+build step), CSS Modules (zero config in Next.js, scoped by default), and
+for charts Recharts/visx versus inline SVG. Choice: CSS Modules with a tiny
+token set in `globals.css`, and an inline SVG `TimeSeriesChart` whose
+scaling math is a pure module. Tradeoff: more hand-written CSS and no
+tooltips or zoom out of the box; acceptable for a kit whose charts answer
+one question each.
+
+### Storybook interaction tests via `@storybook/addon-vitest`
+PLAN.md named `@storybook/test-runner`. Since Storybook 9 the recommended
+path is the Vitest addon: stories become Vitest tests, run in real Chromium
+through Vitest browser mode, with the a11y addon's violations as failures.
+Choice: addon-vitest as a second Vitest project (`npm run test:storybook`)
+so the unit loop never needs a browser. Tradeoff: one more moving part in
+`vitest.config.mts`; in exchange CI reuses the Playwright Chromium already
+installed for e2e.
+
 ### Integer epoch-millisecond timestamps
 SQLite has no date type. Options: ISO 8601 text (readable, slower to
 compare, 24 bytes), Unix seconds (loses sub-second precision the browser

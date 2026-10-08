@@ -200,11 +200,11 @@ Hand-rolled components, minimal consistent design (CSS modules or
 vanilla-extract; log the decision). No component library dependency. Charts
 hand-rolled SVG or a micro-lib (log the decision; no heavyweight chart
 frameworks).
-- [ ] Components: `MetricCard` (p75 + rating color per web.dev thresholds), `TimeSeriesChart`, `PagesTable`, `SessionsTable`, `FilterBar` (time range, device, connection)
-- [ ] Storybook configured for Next.js; a story per component including edge states (empty, loading, all-poor ratings, long paths, huge values)
-- [ ] Interaction tests (play functions) for FilterBar and PagesTable sorting at minimum; `@storybook/test-runner` wired into CI
-- [ ] A11y addon enabled; fix what it flags
-- [ ] Chapter 06: component boundaries (why these five), what Storybook stories/play functions are for, how the interaction tests differ from e2e
+- [x] Components: `MetricCard` (p75 + rating color per web.dev thresholds), `TimeSeriesChart`, `PagesTable`, `SessionsTable`, `FilterBar` (time range, device, connection)
+- [x] Storybook configured for Next.js; a story per component including edge states (empty, loading, all-poor ratings, long paths, huge values)
+- [x] Interaction tests (play functions) for FilterBar and PagesTable sorting at minimum; `@storybook/test-runner` wired into CI
+- [x] A11y addon enabled; fix what it flags
+- [x] Chapter 06: component boundaries (why these five), what Storybook stories/play functions are for, how the interaction tests differ from e2e
 - DoD: `npm run storybook` works; every component above has stories; at least
   two interaction tests pass in CI; chapter 06 done.
 
@@ -359,3 +359,21 @@ decisions logged, anything blocked.
   the committed snapshot to the live schema, and CI runs `npm run
   codegen:check` (regenerate + `git diff --exit-code`). Generated code is
   lint-ignored and coverage-excluded. Chapter 05, TOUR, glossary. Next: M6.
+- 2026-10-07 (late night, Claude Code, multi-agent) — M6 complete: five
+  CSS-Modules components in src/dashboard with stories (16 story tests incl.
+  two play functions, axe per story with violations as failures) via
+  Storybook 10 nextjs-vite + addon-vitest as a second Vitest project
+  (decision: addon-vitest over test-runner, logged); page composed with one
+  TrafficFilter variable; DateTime scalar mapped to string in codegen; axe
+  caught the create-next-app `overflow-x: hidden` body rule (removed).
+  Decisions logged: CSS Modules + hand-rolled SVG, TrafficFilter windowed on
+  pageview start, addon-vitest. PREPARED AHEAD (swap noted, boxes not
+  ticked until their milestone): M8 stress seed (`npm run db:seed:stress`,
+  measured 2,000 sessions / 21,265 pageviews / 100,136 events in 0.8s,
+  idempotent), M10 demo mode (VITALS_DEMO_MODE=1: tmp-dir DB seeded on open,
+  GraphiQL off, collect rate limit 120/min/site -> 429, banner, drizzle/
+  traced into serverless output; `next build` verified), M7 Apollo modules
+  (src/app/apollo: ApolloNextAppProvider wrapper, RSC client over SchemaLink,
+  verified in-process with no HTTP hop). Draft chapters 07-10 and 99 written
+  (concept sections; file lists filled when each milestone lands). Next: M7
+  wiring (page -> server component + PreloadQuery, no-JS e2e), then M9.

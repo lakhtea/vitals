@@ -25,5 +25,6 @@ test("a posted batch shows up on the dashboard", async ({ page, request }) => {
   expect(response.status()).toBe(202);
 
   await page.goto("/");
-  await expect(page.getByRole("cell", { name: "/e2e/ingested" })).toBeVisible();
+  const pagesTable = page.getByRole("table", { name: /Pages with p75/ });
+  await expect(pagesTable.getByRole("rowheader", { name: "/e2e/ingested", exact: true })).toBeVisible();
 });

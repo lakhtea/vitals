@@ -1,23 +1,30 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --surface: #fafafa;
+  --border: #d4d4d4;
+  --muted: #616161;
+  /* web.dev rating colors, dark enough to be used as text on --surface (AA). */
+  --rating-good: #166534;
+  --rating-needs-improvement: #854d0e;
+  --rating-poor: #b91c1c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --surface: #171717;
+    --border: #2e2e2e;
+    --muted: #a3a3a3;
+    --rating-good: #4ade80;
+    --rating-needs-improvement: #fbbf24;
+    --rating-poor: #f87171;
   }
 }
 
 html {
   height: 100%;
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
 }
 
 body {
@@ -40,6 +47,12 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* One focus ring for every interactive element, keyboard-only. */
+:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
 }
 
 @media (prefers-color-scheme: dark) {

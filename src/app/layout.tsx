@@ -1,7 +1,9 @@
-// The root HTML shell. Every page renders inside Providers so Apollo is available.
+// The root HTML shell. ApolloWrapper gives every client component the same
+// per-request Apollo client; DemoBanner renders only when VITALS_DEMO_MODE=1.
 import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "./providers";
+import { ApolloWrapper } from "./apollo/ApolloWrapper";
+import { DemoBanner } from "./DemoBanner";
 
 export const metadata: Metadata = {
   title: "Vitals",
@@ -12,7 +14,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <DemoBanner />
+        <ApolloWrapper>{children}</ApolloWrapper>
       </body>
     </html>
   );
