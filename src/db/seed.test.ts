@@ -16,13 +16,13 @@ const countAll = (db: Db) => ({
 });
 
 describe("synthetic seed", () => {
-  it("fills one site with sessions across many paths, and running it twice changes nothing", () => {
+  it("fills the demo site with sessions across many paths, and running it twice changes nothing", () => {
     const db = makeDb(":memory:");
 
     seed(db);
     const afterFirstRun = countAll(db);
 
-    expect(afterFirstRun.sites).toBe(1);
+    expect(afterFirstRun.sites).toBe(2);
     expect(afterFirstRun.sessions).toBeGreaterThanOrEqual(40);
     expect(afterFirstRun.paths).toBeGreaterThanOrEqual(8);
     expect(afterFirstRun.metricEvents).toBeGreaterThan(afterFirstRun.pageviews ?? 0);

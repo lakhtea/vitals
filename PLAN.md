@@ -165,7 +165,7 @@ Replace the leftover tracker domain entirely. Nothing tracker-shaped survives.
 ### M3 — 👤 LAKHTE BUILDS: the library (`lib/vitals-client`)
 Claude Code: coach and reviewer only, per the pairing contract. Deliverables
 are Lakhte's.
-- [ ] Claude Code: write `docs/learning/03-library-brief.md` — the API contract (`initVitals({ endpoint, siteId, sampleRate? })` and nothing else in v1), concepts to read first (web-vitals package, PerformanceObserver, sendBeacon vs fetch keepalive, visibilitychange/pagehide, ESM vs CJS, what tsup does), acceptance criteria, known pitfalls (iOS pagehide quirks, losing the final INP, double-flush)
+- [x] Claude Code: write `docs/learning/03-library-brief.md` — the API contract (`initVitals({ endpoint, siteId, sampleRate? })` and nothing else in v1), concepts to read first (web-vitals package, PerformanceObserver, sendBeacon vs fetch keepalive, visibilitychange/pagehide, ESM vs CJS, what tsup does), acceptance criteria, known pitfalls (iOS pagehide quirks, losing the final INP, double-flush)
 - [ ] Claude Code (optional, if Lakhte wants it): failing acceptance tests in `lib/vitals-client/test/`, clearly headed as scaffolding
 - [ ] Lakhte: implement capture (LCP, CLS, INP, TTFB, FCP + path, coarse device class, connection type when present), batching, and flush on visibilitychange/pagehide via sendBeacon with fetch fallback
 - [ ] Lakhte: build config (tsup or equivalent → ESM + CJS + d.ts, `sideEffects: false`), `lib/vitals-client/CHANGELOG.md` from 0.1.0, library README with the two-line integration snippet

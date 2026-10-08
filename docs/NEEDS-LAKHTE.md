@@ -20,7 +20,7 @@
 
 ## M3: the browser library (your build)
 
-- Implement `lib/vitals-client` yourself, following `docs/learning/03-library-brief.md` once it exists.
+- Implement `lib/vitals-client` yourself, following `docs/learning/03-library-brief.md` (written 2026-10-07; start with its reading list and acceptance criteria).
   Claude Code reviews in `docs/learning/03-library-review.md` and never edits the library.
 - Wire the library into the dashboard in dev (one script tag or import) so the dashboard dogfoods itself.
 - Write the closing section of chapter 03 in your own words.
@@ -47,3 +47,4 @@
 ## Log of additions
 
 - 2026-10-07: file created during M0 with environment notes, M3, M10, and M11 items.
+- 2026-10-07: M3 brief is ready; the `vitals-dashboard` site is seeded so dogfooding works as soon as the library does.

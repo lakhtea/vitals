@@ -6,6 +6,8 @@ import { metricEvents, pageviews, sessions, sites } from "./schema";
 import { generateSyntheticTraffic } from "./synthetic/traffic";
 
 export const DEMO_SITE = { id: "demo", name: "Demo site (synthetic traffic)" } as const;
+/** Where the dashboard reports on itself once the browser library (M3) is wired in. */
+export const DASHBOARD_SITE = { id: "vitals-dashboard", name: "Vitals dashboard (self-measured)" } as const;
 
 const SESSION_COUNT = 50;
 const RANDOM_SEED = 20261007;
@@ -19,7 +21,13 @@ export const seed = (db: Db, now: number = Date.now()): void => {
   });
 
   db.transaction((tx) => {
-    tx.insert(sites).values({ ...DEMO_SITE, createdAt: now }).onConflictDoNothing().run();
+    tx.insert(sites)
+      .values([
+        { ...DEMO_SITE, createdAt: now },
+        { ...DASHBOARD_SITE, createdAt: now },
+      ])
+      .onConflictDoNothing()
+      .run();
     tx.insert(sessions).values(traffic.sessions).onConflictDoNothing().run();
     tx.insert(pageviews).values(traffic.pageviews).onConflictDoNothing().run();
     tx.insert(metricEvents).values(traffic.metricEvents).onConflictDoNothing().run();

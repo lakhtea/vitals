@@ -40,9 +40,12 @@ describe("Query.sites and Site.pages", () => {
 
     expect(result.errors).toBeUndefined();
     const sites = result.data?.sites as Array<{ id: string; name: string; pages: PageRow[] }>;
-    expect(sites).toHaveLength(1);
+    const demo = sites.find((site) => site.id === "demo");
+    if (!demo) {
+      throw new Error("demo site missing from seed");
+    }
 
-    const pages = sites[0].pages;
+    const pages = demo.pages;
     const totalPageviews = db.select({ n: count() }).from(pageviews).get()?.n;
     const totalEvents = db.select({ n: count() }).from(metricEvents).get()?.n;
 

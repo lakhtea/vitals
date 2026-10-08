@@ -87,6 +87,7 @@ npm run dev          # http://localhost:3000, GraphiQL at /api/graphql
 - [00 - The walking skeleton](learning/00-the-skeleton.md): every file in the starting repo and why it exists.
 - [01 - The data model](learning/01-data-model.md): the four tables, migrations, and how the seed fakes realistic traffic.
 - [02 - Ingestion](learning/02-ingestion.md): sendBeacon, batching, idempotent delivery, and what validation protects against.
+- [03 - The browser library: brief](learning/03-library-brief.md): Lakhte's build; the contract, reading list, acceptance criteria, and pitfalls.
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
 ## Environment variables
