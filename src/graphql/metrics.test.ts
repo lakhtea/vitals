@@ -142,7 +142,28 @@ describe("query cost of the dashboard's main operation", () => {
     expect(result.errors).toBeUndefined();
     const pageCount = (result.data?.site as { pages: unknown[] }).pages.length;
     expect(pageCount).toBeGreaterThanOrEqual(8);
-    // Naive implementation: 1 (site) + 1 (pages) + one metrics query per page.
-    expect(counter.count()).toBe(2 + pageCount);
+    // 1 (site) + 1 (pages) + 1 batched metrics statement for every page. The
+    // naive resolver this replaced cost 2 + pageCount (12 for the seed).
+    expect(counter.count()).toBe(3);
+  });
+
+  it("loads every session's pageviews in one batched statement, grouped by the right session", async () => {
+    const counter = createQueryCounter();
+    const db = makeDb(":memory:", { logger: counter.logger });
+    seed(db);
+    counter.reset();
+
+    const result = await exec(db, `{ site(id: "demo") { sessions(limit: 20) { id pageviews { id path } } } }`);
+
+    expect(result.errors).toBeUndefined();
+    const sessionsLoaded = (result.data?.site as { sessions: Array<{ id: string; pageviews: Array<{ id: string }> }> })
+      .sessions;
+    expect(sessionsLoaded).toHaveLength(20);
+    for (const session of sessionsLoaded) {
+      expect(session.pageviews.length).toBeGreaterThan(0);
+      expect(session.pageviews.every((pageview) => pageview.id.startsWith(`${session.id}-p`))).toBe(true);
+    }
+    // 1 (site) + 1 (sessions) + 1 (pageviews for all 20 sessions).
+    expect(counter.count()).toBe(3);
   });
 });

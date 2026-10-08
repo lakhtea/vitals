@@ -104,6 +104,23 @@ does not authenticate, consistent with the no-multi-tenant scope. Rating is
 recomputed server-side so stored ratings always match the dashboard's
 thresholds.
 
+### DataLoader for `Page.metrics` rather than aggregating at the root
+Problem: `site { pages { metrics } }` ran one percentile statement per page
+(measured: 12 for 10 pages). Options: (a) have the `pages` resolver compute
+metrics for every page up front and attach them, which couples the parent
+to a child field it cannot know was requested; (b) one hand-written root
+SQL that returns pages with their metrics in a single statement, which is
+genuinely the fastest option here; (c) keep resolvers independent and batch
+with DataLoader via `@pothos/plugin-dataloader`. Choice: (c), measured at 3
+statements. Tradeoff, stated plainly: for this exact query, (b) would be 1
+statement and simpler SQL. DataLoader was chosen because it generalises to
+every relation in the graph without the root knowing the shape of the
+query, it composes when a client asks for `pages { metrics }` and
+`sessions { pageviews }` in one document, and the per-request batching and
+memoisation pattern is the transferable skill this repo exists to
+demonstrate. The percentile SQL still accepts many sites and paths, so the
+batch is one statement per distinct time range, not per page.
+
 ### Integer epoch-millisecond timestamps
 SQLite has no date type. Options: ISO 8601 text (readable, slower to
 compare, 24 bytes), Unix seconds (loses sub-second precision the browser
@@ -116,7 +133,8 @@ CLI without `datetime(col/1000, 'unixepoch')`.
 
 | What | Before | After |
 | ---- | ------ | ----- |
-| `site { pages { metrics } }` SQL statements, N = 10 seeded pages ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | 12 = 2 + N (naive) | TBD (DataLoader) |
+| `site { pages { metrics } }` SQL statements, N = 10 seeded pages ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | 12 = 2 + N (naive) | 3 (DataLoader) |
+| `site { sessions(limit: 20) { pageviews } }` SQL statements ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | not measured (built batched from the start) | 3 (DataLoader) |
 | Sessions table render, stress seed | TBD | TBD (virtualized) |
 | First-load JS, dashboard route | TBD | budget enforced in CI |
 | This dashboard's own p75 LCP / CLS / INP | — | TBD (self-instrumented) |

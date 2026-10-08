@@ -1,7 +1,6 @@
 // GraphQL enums for the domain vocabulary. Values come from src/vitals so the
 // schema cannot drift from the database; MetricRating needs explicit names
 // because GraphQL enum values cannot contain hyphens.
-import { CONNECTION_TYPES, DEVICE_CLASSES } from "@/vitals/dimensions";
 import { METRIC_NAMES } from "@/vitals/metrics";
 import { builder } from "./builder";
 
@@ -33,6 +32,3 @@ export const ConnectionTypeEnum = builder.enumType("ConnectionType", {
     UNKNOWN: { value: "unknown" },
   } as const,
 });
-
-// Referenced so the enums above are registered even before Session uses them.
-export const dimensionEnums = { DeviceClassEnum, ConnectionTypeEnum, connectionTypes: CONNECTION_TYPES, deviceClasses: DEVICE_CLASSES };

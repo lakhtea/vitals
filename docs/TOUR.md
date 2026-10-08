@@ -4,9 +4,9 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M2 complete.**
-Data model, migrations, seed, and the ingest endpoint are in place.
-The dashboard lists measured pages with their traffic counts; real batches posted to `/api/collect` appear alongside the seed.
+Current state: **M4 complete** (M3, the browser library, is Lakhte's and in progress).
+Data model, migrations, seed, ingest endpoint, and the analytics API (percentiles, rating buckets, DataLoader-batched relations) are in place.
+The dashboard UI still shows the M1 pages table; M6 builds the real one.
 
 ## The one-paragraph version
 
@@ -25,16 +25,25 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   ├── layout.tsx        HTML shell, wraps pages in Providers
 │   │   ├── providers.tsx     Apollo Client + ApolloProvider
 │   │   └── page.tsx          the dashboard home: pages table
-│   ├── graphql/              Pothos builder, context, schema, schema tests
+│   ├── graphql/
+│   │   ├── builder.ts        the Pothos builder (plugins, scalar types)
+│   │   ├── scalars.ts        DateTime
+│   │   ├── enums.ts          MetricName, MetricRating, DeviceClass, ConnectionType
+│   │   ├── types/            MetricSummary, Session + Pageview (loadableList relation)
+│   │   ├── loaders/          batch functions DataLoader calls (Page.metrics)
+│   │   ├── schema.ts         Page, Site, root queries, toSchema()
+│   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler + tests
 │   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions
 │   └── db/
 │       ├── schema.ts         the four tables (sites, sessions, pageviews, metric_events)
 │       ├── index.ts          open SQLite, run migrations, makeDb / getDb
-│       ├── queries/          SQL that resolvers call (per-path aggregates)
+│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions
+│       ├── query-counter.ts  counts statements; behind every README query number
 │       ├── synthetic/        deterministic fake-traffic generator
 │       └── seed.ts           idempotent demo seed (npm run db:seed)
 ├── drizzle/                  generated migrations + snapshots (npm run db:generate)
+├── scripts/                  measure-query-count.ts (npm run measure:queries)
 ├── e2e/                      Playwright specs
 ├── docs/
 │   ├── TOUR.md               this file
@@ -55,6 +64,12 @@ Chapter 00 walks this path step by step; chapter 01 explains the tables it reads
 
 Browser `sendBeacon` -> `POST /api/collect` -> `route.ts` -> `collect/handle.ts` (size, JSON, zod, site) -> `collect/ingest.ts` (one transaction, conflict-ignoring inserts) -> `202 { inserted, duplicates }`.
 Chapter 02 explains each step and the error codes.
+
+## Follow a batched field
+
+`site { pages { metrics } }`: the `pages` resolver returns 10 pages -> graphql-js calls `Page.metrics` ten times in the same tick -> each call hands DataLoader a `(site, path, range)` key -> after the tick, DataLoader calls `batchLoadPageMetrics` once with all ten -> one window-function statement -> results handed back in key order.
+Three statements total; the naive version cost twelve.
+Chapter 04 is the full story and the interview answer.
 
 ## The data model in one breath
 
@@ -88,6 +103,7 @@ npm run dev          # http://localhost:3000, GraphiQL at /api/graphql
 - [01 - The data model](learning/01-data-model.md): the four tables, migrations, and how the seed fakes realistic traffic.
 - [02 - Ingestion](learning/02-ingestion.md): sendBeacon, batching, idempotent delivery, and what validation protects against.
 - [03 - The browser library: brief](learning/03-library-brief.md): Lakhte's build; the contract, reading list, acceptance criteria, and pitfalls.
+- [04 - N+1 and DataLoader](learning/04-n-plus-one-and-dataloader.md): the naive query log line by line, exactly what DataLoader batches and when, measured before/after.
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
 ## Environment variables

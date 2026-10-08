@@ -48,8 +48,33 @@ Fetching a list of N parents and then issuing one query per parent for a child f
 The standard fix is DataLoader.
 
 **DataLoader.**
-A per-request utility that collects every `load(id)` call made during one tick of the event loop and issues a single batched fetch for all of them.
-It also memoises, so the same id is fetched once per request.
+A per-request utility that collects every `load(key)` call made during one tick of the event loop and issues a single batched fetch for all of them.
+It also memoises, so the same key is fetched once per request.
+Its one contract: the batch function returns values in the same order as the keys it received.
+
+**Batching window (tick).**
+The moment DataLoader waits for before firing its batch: after the current synchronous work and the promise jobs queued behind it.
+Every resolver graphql-js calls for a list's items runs inside that window, which is why all their keys land in one batch.
+
+**Memoisation.**
+Remembering the result for a key so a second request for it returns the same promise instead of fetching again.
+DataLoader does this per request; the `cacheKeyFn` option says how to turn an object key into a string for the lookup.
+
+**Custom scalar.**
+A GraphQL leaf type you define, with `serialize` (value to wire), `parseValue` (variable to value), and `parseLiteral` (inline literal to value).
+`DateTime` here carries epoch milliseconds as ISO 8601 strings because GraphQL `Int` is 32-bit.
+
+**Window function.**
+A SQL function evaluated over a "window" of related rows without collapsing them, such as `ROW_NUMBER() OVER (PARTITION BY path ORDER BY value)`.
+The percentile query ranks every value within its (site, path, metric) group this way.
+
+**Nearest-rank percentile.**
+The p-th percentile defined as the value at rank ceil(p x n) in the sorted sample.
+Simple, exact for small samples, and what this repo uses; CrUX uses histogram interpolation instead.
+
+**Half-open interval.**
+A range that includes its start and excludes its end, written [from, to).
+Time filters use it so adjacent ranges never double count an event on the boundary.
 
 **Context.**
 The object every resolver receives as its third argument.

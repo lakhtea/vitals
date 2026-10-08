@@ -177,13 +177,13 @@ are Lakhte's.
   learned, what surprised him.
 
 ### M4 — GraphQL analytics API (the DataLoader showpiece — do this carefully)
-- [ ] Query-count instrumentation first: a committed counter (Drizzle logger or driver wrap) usable in tests
-- [ ] Aggregates: per-page p75 (and p50/p90) per metric over a time range; rating buckets per web.dev thresholds; site-level rollup
-- [ ] Implement `Page.metrics` naively; record the measured N+1 count in README's metrics table
-- [ ] Convert to DataLoader via `@pothos/plugin-dataloader`; record the after count; add a regression test pinning the batched count
-- [ ] Second batched relation (e.g. `Session.pageviews`) to show it generalizes
-- [ ] README "Decisions" entry: DataLoader vs aggregate-at-the-root SQL, with the tradeoff honestly stated (SQL could do this in one query; the point is demonstrating the general pattern, and the entry should say so)
-- [ ] Chapter 04: the N+1 problem from first principles — walk the naive resolver's query log line by line, then exactly what DataLoader batches and when; this chapter doubles as Lakhte's interview prep for the most-asked GraphQL question
+- [x] Query-count instrumentation first: a committed counter (Drizzle logger or driver wrap) usable in tests
+- [x] Aggregates: per-page p75 (and p50/p90) per metric over a time range; rating buckets per web.dev thresholds; site-level rollup
+- [x] Implement `Page.metrics` naively; record the measured N+1 count in README's metrics table
+- [x] Convert to DataLoader via `@pothos/plugin-dataloader`; record the after count; add a regression test pinning the batched count
+- [x] Second batched relation (e.g. `Session.pageviews`) to show it generalizes
+- [x] README "Decisions" entry: DataLoader vs aggregate-at-the-root SQL, with the tradeoff honestly stated (SQL could do this in one query; the point is demonstrating the general pattern, and the entry should say so)
+- [x] Chapter 04: the N+1 problem from first principles — walk the naive resolver's query log line by line, then exactly what DataLoader batches and when; this chapter doubles as Lakhte's interview prep for the most-asked GraphQL question
 - DoD: metrics table filled with measured before/after numbers and method
   linked; regression test green; chapter 04 done.
 
@@ -337,3 +337,17 @@ decisions logged, anything blocked.
   README gained the payload example + status table and a decision entry.
   Chapter 02, TOUR, glossary updated. Next: M3 brief (Lakhte's build), then
   M4.
+- 2026-10-07 (night, Claude Code) — M3 brief written (Lakhte's build; skipped
+  per contract) and M4 complete in two commits so git shows before/after.
+  QueryCounter (Drizzle logger through makeDb) + `npm run measure:queries`
+  (`-- --verbose` prints statements). Percentiles via SQLite window
+  functions, nearest-rank (value at rank ceil(p*n)), half-open [from, to)
+  DateTime range, rating buckets, site rollup. MEASURED: `site { pages {
+  metrics } }` 12 statements naive (2+N, N=10) -> 3 with
+  `t.loadableList` + cacheKeyFn on (site, path, range); `site { sessions(20)
+  { pageviews } }` 3 statements. Both pinned by tests (red against naive
+  first). DateTime scalar (Int is 32-bit), MetricRating/DeviceClass/
+  ConnectionType enums (no hyphens in GraphQL enum values). Decision entry
+  DataLoader vs root SQL written honestly. Chapter 04, TOUR, glossary. Not
+  batched on purpose: Site.pages across sites (named as the chapter's
+  exercise). Next: M5.
