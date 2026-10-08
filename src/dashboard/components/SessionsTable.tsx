@@ -125,7 +125,7 @@ export const SessionsTable = ({ sessions }: SessionsTableProps): ReactElement =>
         </colgroup>
         <thead>
           <tr aria-rowindex={1}>
-            <th scope="col">Started</th>
+            <th scope="col">Started (UTC)</th>
             <th scope="col">Device</th>
             <th scope="col">Connection</th>
             <th scope="col">Browser</th>

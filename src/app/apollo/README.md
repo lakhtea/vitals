@@ -9,11 +9,11 @@ Two clients, two worlds, never mixed.
 
 ## How a page fetches
 
-1. Preferred: in the Server Component page, wrap the interactive child in `<PreloadQuery query={DOC} variables={...}>` from `rsc-client.ts`, and in the `"use client"` child call `useSuspenseQuery(DOC, { variables })` with the same document and variables.
-   The data is fetched once on the server, streamed into the client cache, and the child never refetches on hydration.
-   Put the `<Suspense>` boundary around the child with a fallback shaped like the final layout.
-2. Server-only data (no interaction below it): `const { data } = await query({ query: DOC })` and render it directly.
-   Never hand that data to a component that also runs the same query client-side; the README of the integration package warns the two caches drift apart.
+1. Default (what `src/app/page.tsx` does): `const { data } = await query({ query: DOC, variables })` in the Server Component, after `await connection()` so the page is never prerendered at build time, then pass the result as props to the `"use client"` view.
+   The HTML is complete without JavaScript and hydration sends nothing; the view calls `useQuery(DOC, { variables, skip })` only once the user changes something, keeping the previous result on screen while the next loads.
+2. Per-section streaming: `<PreloadQuery query={DOC} variables={...}>` around a `<Suspense>` boundary whose client child calls `useSuspenseQuery(DOC, { variables })` with the same document and variables.
+   Use it only where a fallback is acceptable: React ships any completed boundary over ~12.8 KB as a hidden chunk plus an inline script, so that content is invisible without JavaScript.
+3. Never hand server data to a component that also runs the same query client-side; the two caches drift apart.
 
 ## Keeping the client boundary small
 

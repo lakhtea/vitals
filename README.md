@@ -184,6 +184,63 @@ already produce). Choice: epoch ms in integer columns; GraphQL exposes ISO
 strings for humans. Tradeoff: raw rows are not human-readable in the sqlite3
 CLI without `datetime(col/1000, 'unixepoch')`.
 
+### Awaited server data as props over `PreloadQuery` streaming
+Problem: the first paint must be rendered on the server with real data, the
+HTML must carry it even with JavaScript disabled (the M7 proof), and
+hydration must not refetch it. Options: (a) have the Server Component fetch
+the app's own `/api/graphql` (an HTTP round trip to itself: absolute URL, a
+listening port, the result serialised twice); (b) `PreloadQuery` +
+`useSuspenseQuery` from `@apollo/client-integration-nextjs`, which streams
+the result into the client cache behind a `<Suspense>` boundary. React
+outlines any completed boundary over ~12.8 KB behind an inline script, so a
+visitor without JavaScript sees the fallback forever (measured: the first
+table row sat inside `<div hidden id="S:0">` with an explicit boundary and
+again with a route-level `loading.tsx`); (c) `await query()` through a
+`SchemaLink` client in the Server Component and pass the resolved result as
+props; the client view renders those props first and runs `useQuery` only
+for a changed site or filter. Choice: (c). The same typed document,
+resolvers, DataLoaders, and `createContext()` serve HTTP and RSC with no
+network hop, the HTML is complete, and hydration sends zero requests
+(`skip` while the view is the initial one). Tradeoff: the first result is
+props and later ones live in the Apollo cache, so returning to the default
+filters shows the server-time snapshot rather than a refetch, and the page
+is one shell rather than streamed sections. `PreloadQuery` stays exported
+from `src/app/apollo/rsc-client.ts` for per-section streaming where a
+fallback is acceptable.
+
+## Server/client boundary
+
+The overview is a Server Component tree with `"use client"` only at the
+leaves that need interaction. Everything a client file imports ships to the
+browser, so the line is drawn as low as possible.
+
+| File | Runs | Why |
+| ---- | ---- | --- |
+| `src/app/layout.tsx` | server | HTML shell; renders `ApolloWrapper` around `{children}` |
+| `src/app/page.tsx` | server | reads the site list and the first `Dashboard` result in-process; takes the one clock reading (`asOf`) |
+| `src/app/apollo/rsc-client.ts` | server | per-request Apollo Client over `SchemaLink`; `import "server-only"` makes a client import a build error |
+| `src/app/apollo/ApolloWrapper.tsx` | client | React context is client-only; the single provider |
+| `src/dashboard/components/DashboardView.tsx` | client | owns site and filter state; `useQuery` for anything but the initial view |
+| `src/dashboard/components/FilterBar.tsx` | client | `onChange` handlers |
+| `src/dashboard/components/PagesTable.tsx` | client | sort order is local UI state |
+| `src/dashboard/components/SessionsTable.tsx` | client | the row window follows the scroll position |
+| `MetricCard`, `DashboardHeader` | either | props in, markup out; today they render inside `DashboardView` |
+
+First paint: `page.tsx` -> `query()` -> `SchemaLink` -> Pothos resolvers ->
+SQLite, all in one process, with no HTTP request to `/api/graphql`. The
+resolved result reaches `DashboardView` as props, so the server HTML and the
+hydrated tree are identical and hydration sends nothing. Later site and
+filter changes are ordinary client requests to `/api/graphql` through
+`useQuery`; the previous cards and tables stay on screen while the next
+result loads. There is deliberately no `<Suspense>` or `loading.tsx` around
+this page: React outlines any completed boundary over ~12.8 KB behind an
+inline script, which hides the tables from a visitor without JavaScript.
+`e2e/ssr.spec.ts` loads the page with JavaScript disabled and asserts the
+seeded rows are visible; that test is what makes the server-rendering claim
+checkable. Dates render in UTC (`src/dashboard/dates.ts`) for the same
+reason: the server and the viewer rarely share a time zone, and a mismatch
+would make React throw the server HTML away.
+
 ## Metrics (measured here, on this repo — never estimated)
 
 | What | Before | After |

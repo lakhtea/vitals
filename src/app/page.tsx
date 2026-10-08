@@ -1,163 +1,68 @@
-"use client";
+// The overview route, a Server Component. It resolves the site list and the
+// first Dashboard result in-process (SchemaLink, no HTTP) and passes them down
+// as props, so the HTML is complete without JavaScript and hydration fetches nothing.
+import { connection } from "next/server";
+import type { ReactElement } from "react";
+import { query } from "@/app/apollo/rsc-client";
+import { DashboardHeader } from "@/dashboard/components/DashboardHeader";
+import { DashboardView, type DashboardSite, type SiteOption } from "@/dashboard/components/DashboardView";
+import styles from "@/dashboard/components/DashboardView.module.css";
+import { DEFAULT_FILTERS, toTrafficFilter } from "@/dashboard/filters";
+import { DASHBOARD, SITES } from "@/dashboard/queries";
 
-// The dashboard overview. Owns two pieces of state (which site, which filters),
-// fetches one typed document, and hands plain props to the components. A
-// client component for now; M7 moves the first paint to the server.
-import { useQuery } from "@apollo/client/react";
-import { useMemo, useState } from "react";
-import { toMetricName, toMetricRating } from "@/dashboard/adapters";
-import { DEFAULT_FILTERS, FilterBar, type DashboardFilters } from "@/dashboard/components/FilterBar";
-import { MetricCard } from "@/dashboard/components/MetricCard";
-import { PagesTable } from "@/dashboard/components/PagesTable";
-import { SessionsTable } from "@/dashboard/components/SessionsTable";
-import { toTrafficFilter } from "@/dashboard/filters";
-import { graphql } from "@/graphql/generated";
-import { METRIC_NAMES } from "@/vitals/metrics";
-import styles from "./page.module.css";
+interface Overview {
+  /** The one clock reading for this request; every time window counts back from it. */
+  asOf: number;
+  sites: SiteOption[];
+  /** The first site under DEFAULT_FILTERS; null only when there are no sites at all. */
+  initialSite: DashboardSite | null;
+}
 
-const SITES = graphql(`
-  query Sites {
-    sites {
-      id
-      name
-    }
+const loadOverview = async (): Promise<Overview> => {
+  // better-sqlite3 answers synchronously, so without this Next would happily
+  // prerender the page at build time with whatever the database held then.
+  await connection();
+  const asOf = Date.now();
+
+  const sitesResult = await query({ query: SITES });
+  if (sitesResult.data === undefined) {
+    throw new Error("The Sites query returned no data.");
   }
-`);
-
-const DASHBOARD = graphql(`
-  query Dashboard($siteId: ID!, $filter: TrafficFilter) {
-    site(id: $siteId) {
-      id
-      name
-      metrics(filter: $filter) {
-        name
-        p75
-        p75Rating
-        sampleCount
-      }
-      pages(filter: $filter) {
-        path
-        pageviewCount
-        metrics(filter: $filter) {
-          name
-          p75
-          p75Rating
-        }
-      }
-      sessions(filter: $filter, limit: 50) {
-        id
-        startedAt
-        deviceClass
-        connectionType
-        userAgentFamily
-        pageviews {
-          path
-        }
-      }
-    }
+  const sites = sitesResult.data.sites;
+  const firstSite = sites[0];
+  if (firstSite === undefined) {
+    return { asOf, sites, initialSite: null };
   }
-`);
 
-const SESSIONS_SHOWN = 50;
-// Evaluated once per page load, outside render, so the "last 7 days" window is
-// stable across re-renders and the React compiler's purity rule is respected.
-const PAGE_LOADED_AT = Date.now();
-
-export default function Home() {
-  const sitesQuery = useQuery(SITES);
-  const [chosenSiteId, setChosenSiteId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
-
-  const sites = sitesQuery.data?.sites ?? [];
-  const siteId = chosenSiteId ?? sites[0]?.id ?? null;
-  const filter = useMemo(() => toTrafficFilter({ filters, now: PAGE_LOADED_AT }), [filters]);
-
-  const dashboard = useQuery(DASHBOARD, {
-    variables: { siteId: siteId ?? "", filter },
-    skip: siteId === null,
+  const dashboardResult = await query({
+    query: DASHBOARD,
+    variables: { siteId: firstSite.id, filter: toTrafficFilter({ filters: DEFAULT_FILTERS, now: asOf }) },
   });
-  // Keep the previous result on screen while a new filter loads: no layout shift.
-  const site = (dashboard.data ?? dashboard.previousData)?.site ?? null;
+  const initialSite = dashboardResult.data?.site ?? null;
+  if (initialSite === null) {
+    throw new Error(`The Dashboard query returned no data for site "${firstSite.id}".`);
+  }
+  return { asOf, sites, initialSite };
+};
 
-  const cards = METRIC_NAMES.map((name) => {
-    const summary = site?.metrics.find((metric) => toMetricName(metric.name) === name);
-    return {
-      name,
-      p75: summary?.p75 ?? null,
-      rating: summary ? toMetricRating(summary.p75Rating) : null,
-      sampleCount: summary?.sampleCount ?? 0,
-    };
-  });
+// Deliberately no <Suspense> or loading.tsx around this page. The data is
+// in-process and synchronous, so the shell waits a few milliseconds and the
+// HTML arrives complete. A boundary would make React outline anything over
+// ~12.8 KB behind an inline script, hiding the tables from a visitor without
+// JavaScript (see e2e/ssr.spec.ts).
+export default async function Home(): Promise<ReactElement> {
+  const { asOf, sites, initialSite } = await loadOverview();
 
-  const pages = (site?.pages ?? []).map((page) => ({
-    path: page.path,
-    pageviewCount: page.pageviewCount,
-    metrics: page.metrics.map((metric) => ({
-      name: toMetricName(metric.name),
-      p75: metric.p75,
-      p75Rating: toMetricRating(metric.p75Rating),
-    })),
-  }));
+  if (initialSite === null) {
+    return (
+      <main className={styles.page}>
+        <DashboardHeader />
+        <p className={styles.status} role="status">
+          No sites yet. Run <code>npm run db:seed</code> for synthetic demo data.
+        </p>
+      </main>
+    );
+  }
 
-  const error = sitesQuery.error ?? dashboard.error;
-  const isLoading = sitesQuery.loading || (dashboard.loading && site === null);
-
-  return (
-    <main className={styles.page}>
-      <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>Vitals</h1>
-          <p className={styles.tagline}>Core Web Vitals from real sessions, self-hosted.</p>
-        </div>
-        {sites.length > 0 && (
-          <label className={styles.siteField}>
-            Site
-            <select
-              className={styles.siteSelect}
-              value={siteId ?? ""}
-              onChange={(event) => setChosenSiteId(event.target.value)}
-            >
-              {sites.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </header>
-
-      <FilterBar value={filters} onChange={setFilters} />
-
-      <p className={styles.status} role="status">
-        {isLoading && "Loading…"}
-        {!isLoading && sites.length === 0 && (
-          <>
-            No sites yet. Run <code>npm run db:seed</code> for synthetic demo data.
-          </>
-        )}
-      </p>
-      {error && <p role="alert">Failed to load the dashboard: {error.message}</p>}
-
-      {site && (
-        <>
-          <section className={styles.cards} aria-label="Site-wide p75 by metric">
-            {cards.map((card) => (
-              <MetricCard key={card.name} {...card} />
-            ))}
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Pages</h2>
-            <PagesTable pages={pages} />
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Recent sessions (last {SESSIONS_SHOWN})</h2>
-            <SessionsTable sessions={site.sessions} />
-          </section>
-        </>
-      )}
-    </main>
-  );
+  return <DashboardView sites={sites} initialSite={initialSite} asOf={asOf} />;
 }
