@@ -5,7 +5,7 @@
 // Component already resolved, so server HTML and hydration are identical and
 // no request is made; only a changed site or filter queries /api/graphql.
 import { useQuery } from "@apollo/client/react";
-import { useState, type ReactElement } from "react";
+import { useId, useState, type ReactElement } from "react";
 import type { DashboardQuery } from "@/graphql/generated/graphql";
 import { METRIC_NAMES } from "@/vitals/metrics";
 import { toMetricName, toMetricRating } from "../adapters";
@@ -37,26 +37,49 @@ export interface DashboardViewProps {
 const SESSIONS_SHOWN = 50;
 
 export const DashboardView = ({ sites, initialSite, asOf }: DashboardViewProps): ReactElement => {
+  const siteSelectId = useId();
   const [siteId, setSiteId] = useState(initialSite.id);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
 
   // The server already answered this exact question; asking again on hydration
   // would be a wasted request. Any other site or filter is a client query.
   const isInitialView = siteId === initialSite.id && isDefaultFilters(filters);
-  const { data, previousData, loading } = useQuery(DASHBOARD, {
+  const { data, loading, error } = useQuery(DASHBOARD, {
     variables: { siteId, filter: toTrafficFilter({ filters, now: asOf }) },
     skip: isInitialView,
   });
 
-  // Whatever is on screen stays there until the next result arrives: no layout shift.
-  const resolveSite = (): DashboardSite | null => {
+  // The answer to the question currently asked, or undefined while it is still on its way.
+  const resolveLatestSite = (): DashboardSite | null | undefined => {
     if (isInitialView) {
       return initialSite;
     }
-    const latest = data ?? previousData;
-    return latest === undefined ? initialSite : latest.site;
+    return data === undefined ? undefined : data.site;
   };
-  const site = resolveSite();
+  const latestSite = resolveLatestSite();
+
+  // Whatever is on screen stays there until the next result arrives: no layout
+  // shift. Remembered here rather than read from Apollo's previousData, which
+  // after a skipped (initial) view still holds the result before that one, so
+  // a loading render would briefly show another site's tables.
+  const [shownSite, setShownSite] = useState<DashboardSite | null>(initialSite);
+  if (latestSite !== undefined && latestSite !== shownSite) {
+    setShownSite(latestSite);
+  }
+  const site = latestSite === undefined ? shownSite : latestSite;
+
+  const resolveStatus = (): string | null => {
+    if (loading) {
+      return "Updating…";
+    }
+    if (error !== undefined) {
+      return `Could not update: ${error.message}`;
+    }
+    if (site === null) {
+      return "This site no longer exists.";
+    }
+    return null;
+  };
 
   const cards = METRIC_NAMES.map((name) => {
     const summary = site?.metrics.find((metric) => toMetricName(metric.name) === name);
@@ -81,23 +104,28 @@ export const DashboardView = ({ sites, initialSite, asOf }: DashboardViewProps):
   return (
     <main className={styles.page}>
       <DashboardHeader>
-        <label className={styles.siteField}>
-          Site
-          <select className={styles.siteSelect} value={siteId} onChange={(event) => setSiteId(event.target.value)}>
+        {/* Explicit association: a select nested inside its label would be named "Site" plus its own value. */}
+        <div className={styles.siteField}>
+          <label htmlFor={siteSelectId}>Site</label>
+          <select
+            id={siteSelectId}
+            className={styles.siteSelect}
+            value={siteId}
+            onChange={(event) => setSiteId(event.target.value)}
+          >
             {sites.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
                 {candidate.name}
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </DashboardHeader>
 
       <FilterBar value={filters} onChange={setFilters} />
 
       <p className={styles.status} role="status">
-        {loading && "Updating…"}
-        {!loading && site === null && "This site no longer exists."}
+        {resolveStatus()}
       </p>
 
       {site && (
