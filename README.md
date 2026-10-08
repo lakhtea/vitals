@@ -281,8 +281,8 @@ would make React throw the server HTML away.
 | `site { sessions(limit: 20) { pageviews } }` SQL statements ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | not measured (built batched from the start) | 3 (DataLoader) |
 | Sessions table with 2,000 rows: `<tr>` in the DOM / median time to first row, 5 runs ([method](./scripts/measure-render.ts), `npm run build-storybook && npm run measure:render`) | 2,001 / 155 ms | 26 / 91 ms (windowed) |
 | First Load JS for `/`, raw bytes, JS only ([method](./scripts/check-bundle-budget.ts), `npm run build && npm run measure:bundle`) | 689,831 B (about 200 KB gzip) | CI fails above +10% ([baseline](./bundle-budget.json)) |
-| Stress seed: 2,000 sessions / 21,265 pageviews / 100,136 events (`npm run db:seed:stress`) | — | 0.8 s to insert, idempotent on rerun |
-| This dashboard's own p75 LCP / CLS / INP | — | TBD (needs the M3 library) |
+| Stress seed: 2,000 sessions / 21,265 pageviews / 100,136 events (`npm run db:seed:stress`) | n/a | 0.8 s to insert, idempotent on rerun |
+| This dashboard's own p75 LCP / CLS / INP | n/a | TBD (needs the M3 library) |
 
 ## Collecting data: `POST /api/collect`
 

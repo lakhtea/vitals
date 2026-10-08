@@ -94,11 +94,11 @@ git status            # clean: nothing to regenerate
 
 Now break something on purpose:
 
-1. In `src/graphql/schema.ts`, rename `eventCount` to `eventTotal`.
-2. `npm test` fails: the snapshot test says the schema and `schema.graphql` disagree.
-3. `npm run codegen` rewrites the snapshot and the generated module.
-4. `npm run typecheck` now fails in `page.tsx`, because the query still asks for `eventCount`, which the generated types no longer know.
-5. Revert the rename and run `npm run codegen` again.
+1. In `src/graphql/schema.ts`, rename the `Page` field `pageviewCount` to `pageviewTotal` (the key, not the row property it exposes).
+2. `npm test` fails: the snapshot test says the schema and `schema.graphql` disagree, and the two schema tests that query `pageviewCount` fail with it.
+3. `npm run codegen` rewrites the snapshot, then refuses to generate: "Cannot query field pageviewCount on type Page", pointing at the document in `src/dashboard/queries.ts`. `npm run typecheck` is still green at this point, because the generated module is unchanged.
+4. Change that document to ask for `pageviewTotal`; `npm run codegen` succeeds, and `npm run typecheck` now fails in `src/dashboard/components/DashboardView.tsx`, which still reads `pageviewCount` from the result the generated types no longer know.
+5. Revert both renames and run `npm run codegen` again.
 
 That sequence is the whole value of the milestone: a server change cannot reach production without the client being updated or the build going red.
 

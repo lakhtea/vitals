@@ -98,7 +98,7 @@ That boundary is what M7 relies on when the first paint moves to the server.
 - `src/dashboard/chartScale.ts`: linear scales, the line path builder, nice ticks, and the series summary that feeds the chart's `<desc>`.
 - `src/dashboard/adapters.ts`: maps GraphQL enum values (`NEEDS_IMPROVEMENT`) to the domain unions the components take (`needs-improvement`), so components never import GraphQL types.
 - `src/vitals/format.ts`: metric value formatting (seconds vs milliseconds, CLS to two decimals), long labels, and the "good ≤ 2.5 s" hint; the vocabulary of how a metric is shown lives next to the vocabulary of what it is.
-- `src/app/page.tsx` and `page.module.css`: the composed overview described above.
+- `src/app/page.tsx` and `page.module.css`: the composed overview described above (`page.module.css` has since been replaced by `src/dashboard/components/DashboardView.module.css`).
 - `.storybook/main.ts` and `preview.ts`: framework, story glob, addons; global CSS and `a11y.test = "error"`.
 - `vitest.config.mts`: now two projects, `unit` and `storybook`; `npm run test` runs the first, `npm run test:storybook` the second.
 - `codegen.ts`: maps the `DateTime` scalar to `string` so generated types match the wire format; the default would have been `unknown`.

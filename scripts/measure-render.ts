@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import { z } from "zod";
 
 const STATIC_DIR = path.resolve("storybook-static");

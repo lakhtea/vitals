@@ -15,10 +15,10 @@ Everything the skeleton knows about the domain enters through imports from the R
 - `playwright.config.ts`: boots a seeded app on its own database file.
 - `codegen.ts`: client preset, scans `src/**`, excludes tests and `generated/`.
 - `drizzle.config.ts`: points drizzle-kit at `src/db/schema.ts` and `./drizzle`.
-- `.storybook/main.ts`, `preview.ts`, `vitest.setup.ts`: Next.js-on-Vite framework, a11y violations as failures, stories as Vitest tests.
+- `.storybook/main.ts`, `preview.ts`: Next.js-on-Vite framework, a11y violations as failures, stories as Vitest tests.
 - `.github/workflows/ci.yml`: lint, typecheck, unit with coverage, `codegen:check`, Storybook tests, e2e.
 - `TESTING_RULES.md`: the testing policy; see "Things people forget".
-- `src/app/api/graphql/route.ts`, `src/app/layout.tsx`, `src/app/providers.tsx`, `src/app/globals.css` (keep the token structure, change the values).
+- `src/app/api/graphql/route.ts`, `src/app/layout.tsx`, `src/app/apollo/`, `src/app/globals.css` (keep the token structure, change the values).
 - `src/graphql/builder.ts`, `context.ts`, `scalars.ts` (DateTime is domain-neutral), `schema-snapshot.test.ts`.
 - `src/db/index.ts` (`makeDb`, `getDb`, migrate-on-open), `src/db/query-counter.ts`.
 - `src/db/synthetic/random.ts`: the seeded PRNG and distributions, useful for any deterministic seed.

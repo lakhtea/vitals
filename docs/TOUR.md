@@ -21,8 +21,7 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   ├── app/                  Next.js App Router
 │   │   ├── api/graphql/      GraphQL endpoint (Yoga)
 │   │   ├── api/collect/      ingest endpoint (two-line glue over src/collect)
-│   │   ├── layout.tsx        HTML shell, wraps pages in Providers
-│   │   ├── providers.tsx     Apollo Client + ApolloProvider
+│   │   ├── layout.tsx        HTML shell, wraps pages in ApolloWrapper
 │   │   ├── apollo/           Apollo <-> Next.js integration: browser wrapper, RSC client (SchemaLink)
 │   │   ├── DemoBanner.tsx    one-line banner, rendered only when VITALS_DEMO_MODE=1
 │   │   └── page.tsx          Server Component: fetches in-process, hands props to DashboardView
@@ -37,7 +36,7 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler, demo rate limiter + tests
 │   ├── config/               demo-mode flag
-│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels
+│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels, adapters, dates
 │   │   └── components/DashboardView.tsx   "use client": site + filter state, useQuery on change only
 │   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions, formatting
 │   └── db/
@@ -53,12 +52,16 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 ├── .storybook/               Storybook 10: nextjs-vite framework, a11y + vitest addons
 ├── schema.graphql            the schema snapshot; a test and CI fail if it drifts from src/graphql
 ├── codegen.ts                GraphQL Codegen config (npm run codegen)
+├── drizzle.config.ts         drizzle-kit: schema path and migrations folder (npm run db:generate)
+├── playwright.config.ts      boots a seeded app on .data/e2e.db before the e2e specs
+├── vitest.config.mts         the unit and storybook Vitest projects; @ and graphql aliases
+├── next.config.ts            traces drizzle/** into the serverless bundle
 ├── e2e/                      Playwright specs
 ├── docs/
 │   ├── TOUR.md               this file
 │   ├── NEEDS-LAKHTE.md       everything only the owner can do (accounts, pushes, deploys)
 │   └── learning/             one chapter per milestone + GLOSSARY.md
-├── .github/workflows/ci.yml  lint, typecheck, unit, e2e
+├── .github/workflows/ci.yml  lint, typecheck, unit + coverage, codegen check, Storybook tests, e2e, bundle budget
 ├── PLAN.md                   milestone plan, guardrails, session log
 ├── TESTING_RULES.md          how we decide what to test
 └── README.md                 public front page, decisions, measured metrics
@@ -66,7 +69,7 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 
 ## Follow a request
 
-Browser `page.tsx` -> Apollo `useQuery` -> `POST /api/graphql` -> `route.ts` -> Yoga -> Pothos resolvers in `schema.ts` -> `db/queries/pages.ts` -> Drizzle -> better-sqlite3 -> `.data/vitals.db`.
+Browser `DashboardView.tsx` -> Apollo `useQuery` -> `POST /api/graphql` -> `route.ts` -> Yoga -> Pothos resolvers in `schema.ts` -> `db/queries/pages.ts` -> Drizzle -> better-sqlite3 -> `.data/vitals.db`.
 Chapter 00 walks this path step by step; chapter 01 explains the tables it reads.
 
 ## Follow the first paint
@@ -101,7 +104,7 @@ All timestamps are epoch milliseconds.
 | Stories | `src/**/*.stories.tsx` | each story in headless Chromium: render, play function, axe | `npm run test:storybook` |
 | E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path) | real dev server + Chromium, `.data/e2e.db` | `npm run test:e2e` |
 
-CI runs both plus `typecheck` and `lint`.
+CI runs all three plus `typecheck`, `lint`, `codegen:check`, and the bundle budget.
 The rule for what deserves a test is in TESTING_RULES.md.
 
 ## When you change the schema
