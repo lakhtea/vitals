@@ -14,4 +14,9 @@ test("the overview arrives server-rendered with seeded aggregates", async ({ pag
   const cards = page.getByRole("region", { name: "Site-wide p75 by metric" }).getByRole("article");
   await expect(cards).toHaveCount(5);
   await expect(cards.filter({ hasNotText: "No data" }).first()).toBeVisible();
+
+  // The self-measurement panel is server-rendered too; the seed gives its site no traffic, so it is the empty state.
+  const selfPanel = page.getByRole("complementary");
+  await expect(selfPanel.getByRole("heading", { level: 2, name: "This site, measured by itself" })).toBeVisible();
+  await expect(selfPanel.getByText(/^No sessions recorded yet/)).toBeVisible();
 });

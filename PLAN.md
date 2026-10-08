@@ -413,3 +413,9 @@ decisions logged, anything blocked.
   imported an undeclared package -> fixed; TOUR/chapters 05/06/99 paths
   corrected. Final: lint, typecheck, 31 unit, 18 story, 8 e2e, bundle
   check green; tree clean.
+- 2026-10-08 ~23:50 ET — Self-measurement panel built (SelfMeasurementPanel,
+  server-rendered from `site(id: "vitals-dashboard")`, honest empty state
+  until the M3 library reports); the M8 "self-instrumentation" box stays
+  open because its DoD requires real collected data. Final tree: lint,
+  typecheck, 33 unit, 20 story, 8 e2e, bundle check green. Session ended
+  well before the 01:50 ET stop. Handoff: docs/NEEDS-LAKHTE.md.

@@ -2,7 +2,7 @@
 // the dashboard's answer to "is this metric OK?", so color never stands alone:
 // the pill spells the rating out.
 import type { ReactElement } from "react";
-import { formatMetricValue, metricLabel, ratingLabel, thresholdHint } from "@/vitals/format";
+import { formatMetricValue, formatSampleCount, metricLabel, ratingLabel, thresholdHint } from "@/vitals/format";
 import type { MetricName, MetricRating } from "@/vitals/metrics";
 import styles from "./MetricCard.module.css";
 
@@ -12,11 +12,6 @@ export interface MetricCardProps {
   rating: MetricRating | null;
   sampleCount: number;
 }
-
-const numberFormat = new Intl.NumberFormat("en-US");
-
-const formatSampleCount = (count: number): string =>
-  `${numberFormat.format(count)} ${count === 1 ? "sample" : "samples"}`;
 
 export const MetricCard = ({ name, p75, rating, sampleCount }: MetricCardProps): ReactElement => {
   const summary = p75 !== null && rating !== null ? { p75, rating } : null;

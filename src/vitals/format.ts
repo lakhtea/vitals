@@ -1,6 +1,6 @@
 // Human-readable metric values and names: the one place the dashboard decides
-// that 2600 ms reads as "2.6 s", a CLS of 0.1 reads as "0.10", and a rating
-// is spelled "Needs improvement".
+// that 2600 ms reads as "2.6 s", a CLS of 0.1 reads as "0.10", a rating is
+// spelled "Needs improvement", and 1204 samples read as "1,204 samples".
 import { METRIC_THRESHOLDS, type MetricName, type MetricRating } from "./metrics";
 
 const MILLISECONDS_PER_SECOND = 1000;
@@ -17,6 +17,12 @@ export const formatMetricValue = ({ name, value }: { name: MetricName; value: nu
   }
   return `${wholeMilliseconds} ms`;
 };
+
+const sampleCountFormat = new Intl.NumberFormat("en-US");
+
+/** Always with its unit ("1 sample", "1,204 samples"), so a bare count never reads as a metric value. */
+export const formatSampleCount = (count: number): string =>
+  `${sampleCountFormat.format(count)} ${count === 1 ? "sample" : "samples"}`;
 
 const METRIC_LABELS: Record<MetricName, string> = {
   LCP: "Largest Contentful Paint",

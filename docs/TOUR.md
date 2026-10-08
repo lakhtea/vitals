@@ -24,7 +24,7 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   ├── layout.tsx        HTML shell, wraps pages in ApolloWrapper
 │   │   ├── apollo/           Apollo <-> Next.js integration: browser wrapper, RSC client (SchemaLink)
 │   │   ├── DemoBanner.tsx    one-line banner, rendered only when VITALS_DEMO_MODE=1
-│   │   └── page.tsx          Server Component: fetches in-process, hands props to DashboardView
+│   │   └── page.tsx          Server Component: fetches in-process, hands props to DashboardView + the self-measurement panel
 │   ├── graphql/
 │   │   ├── builder.ts        the Pothos builder (plugins, scalar types)
 │   │   ├── scalars.ts        DateTime

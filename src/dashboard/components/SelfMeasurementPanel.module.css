@@ -1,0 +1,89 @@
+.panel {
+  /* One height for the metric row and the empty state, so wiring the library never shifts the page. */
+  --row-height: 7rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.explanation {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+  min-height: var(--row-height);
+}
+
+.metric {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.rating {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  color: var(--muted);
+}
+
+.metric[data-rating="good"] .rating {
+  color: var(--rating-good);
+}
+
+.metric[data-rating="needs-improvement"] .rating {
+  color: var(--rating-needs-improvement);
+}
+
+.metric[data-rating="poor"] .rating {
+  color: var(--rating-poor);
+}
+
+.samples {
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Centered as a block, not a flex container: flex would make the <code> its own item and drop the space before it. */
+.empty {
+  align-content: center;
+  min-height: var(--row-height);
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

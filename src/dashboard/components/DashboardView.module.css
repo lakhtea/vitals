@@ -1,10 +1,19 @@
 .page {
   max-width: 1080px;
+  width: 100%;
   margin: 0 auto;
-  padding: 2rem 1rem 4rem;
+  padding: 2rem 1rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+/* The slot under <main> for the self-measurement panel; same column, carries the page's bottom space. */
+.aside {
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 1rem 4rem;
 }
 
 .header {

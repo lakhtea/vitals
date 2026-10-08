@@ -16,10 +16,12 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
 type Documents = {
     "\n  query Sites {\n    sites {\n      id\n      name\n    }\n  }\n": typeof types.SitesDocument,
     "\n  query Dashboard($siteId: ID!, $filter: TrafficFilter) {\n    site(id: $siteId) {\n      id\n      name\n      metrics(filter: $filter) {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n      pages(filter: $filter) {\n        path\n        pageviewCount\n        metrics(filter: $filter) {\n          name\n          p75\n          p75Rating\n        }\n      }\n      sessions(filter: $filter, limit: 50) {\n        id\n        startedAt\n        deviceClass\n        connectionType\n        userAgentFamily\n        pageviews {\n          path\n        }\n      }\n    }\n  }\n": typeof types.DashboardDocument,
+    "\n  query SelfMeasurement {\n    site(id: \"vitals-dashboard\") {\n      id\n      name\n      metrics {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n    }\n  }\n": typeof types.SelfMeasurementDocument,
 };
 const documents: Documents = {
     "\n  query Sites {\n    sites {\n      id\n      name\n    }\n  }\n": types.SitesDocument,
     "\n  query Dashboard($siteId: ID!, $filter: TrafficFilter) {\n    site(id: $siteId) {\n      id\n      name\n      metrics(filter: $filter) {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n      pages(filter: $filter) {\n        path\n        pageviewCount\n        metrics(filter: $filter) {\n          name\n          p75\n          p75Rating\n        }\n      }\n      sessions(filter: $filter, limit: 50) {\n        id\n        startedAt\n        deviceClass\n        connectionType\n        userAgentFamily\n        pageviews {\n          path\n        }\n      }\n    }\n  }\n": types.DashboardDocument,
+    "\n  query SelfMeasurement {\n    site(id: \"vitals-dashboard\") {\n      id\n      name\n      metrics {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n    }\n  }\n": types.SelfMeasurementDocument,
 };
 
 /**
@@ -44,6 +46,10 @@ export function graphql(source: "\n  query Sites {\n    sites {\n      id\n     
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query Dashboard($siteId: ID!, $filter: TrafficFilter) {\n    site(id: $siteId) {\n      id\n      name\n      metrics(filter: $filter) {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n      pages(filter: $filter) {\n        path\n        pageviewCount\n        metrics(filter: $filter) {\n          name\n          p75\n          p75Rating\n        }\n      }\n      sessions(filter: $filter, limit: 50) {\n        id\n        startedAt\n        deviceClass\n        connectionType\n        userAgentFamily\n        pageviews {\n          path\n        }\n      }\n    }\n  }\n"): (typeof documents)["\n  query Dashboard($siteId: ID!, $filter: TrafficFilter) {\n    site(id: $siteId) {\n      id\n      name\n      metrics(filter: $filter) {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n      pages(filter: $filter) {\n        path\n        pageviewCount\n        metrics(filter: $filter) {\n          name\n          p75\n          p75Rating\n        }\n      }\n      sessions(filter: $filter, limit: 50) {\n        id\n        startedAt\n        deviceClass\n        connectionType\n        userAgentFamily\n        pageviews {\n          path\n        }\n      }\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query SelfMeasurement {\n    site(id: \"vitals-dashboard\") {\n      id\n      name\n      metrics {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n    }\n  }\n"): (typeof documents)["\n  query SelfMeasurement {\n    site(id: \"vitals-dashboard\") {\n      id\n      name\n      metrics {\n        name\n        p75\n        p75Rating\n        sampleCount\n      }\n    }\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

@@ -80,7 +80,11 @@ If the dashboard ships a layout shift, its own CLS card says so.
 - `src/dashboard/rowWindow.ts` (+ test): the pure window computation behind the virtualised table; the unit tests guard the end clamp, which is the classic off-by-one.
 - `src/dashboard/components/SessionsTable.tsx` (+ CSS, stories): windowed body, spacer rows, sticky header, ARIA row counts; `TwoThousandRows` and `TwoThousandRowsScrolledToEnd` stories pin the behaviour.
 
-Still to come in M8: the self-measurement panel ("This site, measured by itself"), which needs Lakhte's browser library (M3) to produce data for the `vitals-dashboard` site.
+- `src/dashboard/components/SelfMeasurementPanel.tsx` (+ CSS, stories): the "This site, measured by itself" panel, server-rendered at the bottom of the overview from a `SELF_MEASUREMENT` document against the `vitals-dashboard` site.
+  Until Lakhte's browser library (M3) is wired in it shows its empty state, which says exactly that; the moment real sessions arrive, the five cells fill in with the dashboard's own p75s.
+  `formatSampleCount` moved to `src/vitals/format.ts` so both this panel and `MetricCard` share it.
+
+What remains for M8 is the data: acceptance criterion 10 of the library brief (dogfooding) is what turns the panel on.
 
 ## Self-check
 

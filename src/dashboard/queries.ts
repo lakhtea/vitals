@@ -1,4 +1,4 @@
-// The dashboard's two GraphQL documents, typed by codegen. One module so the
+// The dashboard's GraphQL documents, typed by codegen. One module so the
 // Server Component that preloads and the Client Component that reads share the
 // exact same document: Apollo's server-to-client transport matches on it.
 import { graphql } from "@/graphql/generated";
@@ -41,6 +41,22 @@ export const DASHBOARD = graphql(`
         pageviews {
           path
         }
+      }
+    }
+  }
+`);
+
+/** The dashboard's own all-time rollup: no filter, so every session it ever reported counts. */
+export const SELF_MEASUREMENT = graphql(`
+  query SelfMeasurement {
+    site(id: "vitals-dashboard") {
+      id
+      name
+      metrics {
+        name
+        p75
+        p75Rating
+        sampleCount
       }
     }
   }
