@@ -44,3 +44,17 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  bundle:
+    name: Bundle budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Fails when the dashboard route's First Load JS exceeds bundle-budget.json + tolerance.
+      - run: npm run check:bundle

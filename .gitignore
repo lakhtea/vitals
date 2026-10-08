@@ -51,3 +51,6 @@ next-env.d.ts
 
 # agent tooling artifacts
 /.lavish/
+
+# storybook static build (npm run build-storybook), input to scripts/measure-render.ts
+/storybook-static/

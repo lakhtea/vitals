@@ -18,6 +18,9 @@
     "db:seed:stress": "tsx scripts/seed-db.ts --stress",
     "db:generate": "drizzle-kit generate",
     "measure:queries": "tsx scripts/measure-query-count.ts",
+    "check:bundle": "tsx scripts/check-bundle-budget.ts",
+    "measure:bundle": "tsx scripts/check-bundle-budget.ts --write",
+    "measure:render": "tsx scripts/measure-render.ts",
     "codegen": "tsx scripts/print-schema.ts && graphql-codegen --config codegen.ts",
     "codegen:check": "npm run codegen && git diff --exit-code -- schema.graphql src/graphql/generated",
     "test:storybook": "vitest run --project storybook",
@@ -41,6 +44,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@graphql-codegen/cli": "^7.4.5",
     "@graphql-codegen/client-preset": "^6.2.2",
     "@playwright/test": "^1.62.1",
