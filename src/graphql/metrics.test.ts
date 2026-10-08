@@ -30,18 +30,26 @@ interface PageWithMetrics {
   metrics: MetricSummary[];
 }
 
-/** Five LCPs on "/a" at 1000..5000 ms, one CLS, and an empty page "/b". */
+/**
+ * Five desktop LCPs on "/a" at 1000..5000 ms, one CLS, an empty page "/b",
+ * and one mobile session with a 9000 ms LCP on "/a" so filters have a target.
+ */
 const insertHandVerifiableFixture = (db: Db): void => {
   const t = 1_000;
   db.insert(sites).values({ id: "t", name: "T", createdAt: t }).run();
   db.insert(sessions)
-    .values({ id: "s", siteId: "t", startedAt: t, deviceClass: "desktop", connectionType: "4g", userAgentFamily: "x" })
+    .values([
+      { id: "s", siteId: "t", startedAt: t, deviceClass: "desktop", connectionType: "4g", userAgentFamily: "x" },
+      { id: "m", siteId: "t", startedAt: t, deviceClass: "mobile", connectionType: "3g", userAgentFamily: "x" },
+    ])
     .run();
   const lcpValues = [1000, 2000, 3000, 4000, 5000];
   db.insert(pageviews)
     .values([
-      ...lcpValues.map((_value, i) => ({ id: `p${i}`, sessionId: "s", path: "/a", startedAt: t })),
+      // Pageview start times equal the LCP values so time-window tests read naturally.
+      ...lcpValues.map((value, i) => ({ id: `p${i}`, sessionId: "s", path: "/a", startedAt: value })),
       { id: "p-empty", sessionId: "s", path: "/b", startedAt: t },
+      { id: "p-mobile", sessionId: "m", path: "/a", startedAt: t },
     ])
     .run();
   db.insert(metricEvents)
@@ -55,21 +63,24 @@ const insertHandVerifiableFixture = (db: Db): void => {
         recordedAt: value,
       })),
       { pageviewId: "p0", metricId: "cls0", name: "CLS" as const, value: 0.05, rating: "good" as const, recordedAt: 1500 },
+      { pageviewId: "p-mobile", metricId: "lcpm", name: "LCP" as const, value: 9000, rating: "poor" as const, recordedAt: 9000 },
     ])
     .run();
 };
 
+const DESKTOP_ONLY = { deviceClass: "DESKTOP" };
+
 const PAGE_METRICS = `
-  query PageMetrics($from: DateTime, $to: DateTime) {
+  query PageMetrics($filter: TrafficFilter) {
     site(id: "t") {
-      pages {
+      pages(filter: $filter) {
         path
-        metrics(from: $from, to: $to) {
+        metrics(filter: $filter) {
           name sampleCount p50 p75 p90 p75Rating
           buckets { good needsImprovement poor }
         }
       }
-      metrics(from: $from, to: $to) { name p75 sampleCount }
+      metrics(filter: $filter) { name p75 sampleCount p75Rating }
     }
   }
 `;
@@ -79,7 +90,7 @@ describe("Page.metrics and Site.metrics", () => {
     const db = makeDb(":memory:");
     insertHandVerifiableFixture(db);
 
-    const result = await exec(db, PAGE_METRICS);
+    const result = await exec(db, PAGE_METRICS, { filter: DESKTOP_ONLY });
 
     expect(result.errors).toBeUndefined();
     const site = result.data?.site as { pages: PageWithMetrics[]; metrics: MetricSummary[] };
@@ -104,13 +115,12 @@ describe("Page.metrics and Site.metrics", () => {
     expect(site.metrics.find((metric) => metric.name === "LCP")).toMatchObject({ p75: 4000, sampleCount: 5 });
   });
 
-  it("applies the time range as half-open [from, to) on recordedAt", async () => {
+  it("applies the time window as half-open [from, to) on pageview start", async () => {
     const db = makeDb(":memory:");
     insertHandVerifiableFixture(db);
 
     const result = await exec(db, PAGE_METRICS, {
-      from: new Date(2000).toISOString(),
-      to: new Date(4000).toISOString(),
+      filter: { ...DESKTOP_ONLY, from: new Date(2000).toISOString(), to: new Date(4000).toISOString() },
     });
 
     expect(result.errors).toBeUndefined();
@@ -123,9 +133,28 @@ describe("Page.metrics and Site.metrics", () => {
     const db = makeDb(":memory:");
     insertHandVerifiableFixture(db);
 
-    const result = await exec(db, PAGE_METRICS, { from: "yesterday" });
+    const result = await exec(db, PAGE_METRICS, { filter: { from: "yesterday" } });
 
     expect(result.errors?.[0]?.message).toMatch(/DateTime/);
+  });
+
+  it("answers 'for whom': device and connection filters narrow pages, metrics, and sessions together", async () => {
+    const db = makeDb(":memory:");
+    insertHandVerifiableFixture(db);
+
+    const unfiltered = await exec(db, PAGE_METRICS);
+    const mobileOnly = await exec(db, PAGE_METRICS, { filter: { deviceClass: "MOBILE" } });
+    const sessionsOn3g = await exec(
+      db,
+      `{ site(id: "t") { sessions(filter: { connectionType: THREE_G }) { id } } }`,
+    );
+
+    const lcpOf = (result: typeof unfiltered) =>
+      (result.data?.site as { metrics: MetricSummary[] }).metrics.find((metric) => metric.name === "LCP");
+    expect(lcpOf(unfiltered)).toMatchObject({ sampleCount: 6, p75: 5000 });
+    expect(lcpOf(mobileOnly)).toMatchObject({ sampleCount: 1, p75: 9000, p75Rating: "POOR" });
+    expect((mobileOnly.data?.site as { pages: PageWithMetrics[] }).pages.map((page) => page.path)).toEqual(["/a"]);
+    expect((sessionsOn3g.data?.site as { sessions: Array<{ id: string }> }).sessions).toEqual([{ id: "m" }]);
   });
 });
 

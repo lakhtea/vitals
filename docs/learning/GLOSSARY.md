@@ -74,7 +74,7 @@ Simple, exact for small samples, and what this repo uses; CrUX uses histogram in
 
 **Half-open interval.**
 A range that includes its start and excludes its end, written [from, to).
-Time filters use it so adjacent ranges never double count an event on the boundary.
+Time filters use it on the pageview's start time so adjacent ranges never double count a navigation.
 
 **Context.**
 The object every resolver receives as its third argument.

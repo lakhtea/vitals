@@ -6,9 +6,10 @@ import { type PageAggregate, listPagesForSite } from "@/db/queries/pages";
 import { listSessionsForSite } from "@/db/queries/sessions";
 import { type SiteRow, sites } from "@/db/schema";
 import { builder } from "./builder";
+import { toTrafficFilter, TrafficFilterInput } from "./inputs";
 import { batchLoadPageMetrics, pageMetricsCacheKey, type PageMetricsKey } from "./loaders/page-metrics";
 import "./scalars";
-import { MetricSummaryType, toTimeRange } from "./types/metrics";
+import { MetricSummaryType } from "./types/metrics";
 import { SessionType } from "./types/sessions";
 
 const DEFAULT_SESSIONS_LIMIT = 50;
@@ -24,14 +25,14 @@ const PageType = builder.objectRef<PageAggregate>("Page").implement({
     eventCount: t.exposeInt("eventCount", { description: "Metric events recorded on this path." }),
     metrics: t.loadableList({
       type: MetricSummaryType,
-      description: "Per-metric percentiles for this path, optionally within [from, to).",
-      args: { from: t.arg({ type: "DateTime" }), to: t.arg({ type: "DateTime" }) },
+      description: "Per-metric percentiles for this path; pass the same filter you gave `pages`.",
+      args: { filter: t.arg({ type: TrafficFilterInput }) },
       // DataLoader collects every page's key during one tick and calls `load`
       // once; the batch runs one SQL statement per distinct time range.
       // DataLoader insists on a Promise even though better-sqlite3 is synchronous.
       loaderOptions: { cacheKeyFn: pageMetricsCacheKey },
       load: (keys: PageMetricsKey[], ctx) => Promise.resolve(batchLoadPageMetrics({ db: ctx.db, keys })),
-      resolve: (page, args) => ({ siteId: page.siteId, path: page.path, range: toTimeRange(args) }),
+      resolve: (page, args) => ({ siteId: page.siteId, path: page.path, filter: toTrafficFilter(args.filter) }),
     }),
   }),
 });
@@ -44,23 +45,27 @@ const SiteType = builder.objectRef<SiteRow>("Site").implement({
     createdAt: t.field({ type: "DateTime", resolve: (site) => site.createdAt }),
     pages: t.field({
       type: [PageType],
-      resolve: (site, _args, ctx) => listPagesForSite({ db: ctx.db, siteId: site.id }),
+      description: "Paths with traffic, most viewed first.",
+      args: { filter: t.arg({ type: TrafficFilterInput }) },
+      resolve: (site, args, ctx) => listPagesForSite({ db: ctx.db, siteId: site.id, filter: toTrafficFilter(args.filter) }),
     }),
     metrics: t.field({
       type: [MetricSummaryType],
-      description: "Site-wide rollup across every path, optionally within [from, to).",
-      args: { from: t.arg({ type: "DateTime" }), to: t.arg({ type: "DateTime" }) },
-      resolve: (site, args, ctx) => loadSiteMetrics({ db: ctx.db, siteIds: [site.id], range: toTimeRange(args) }),
+      description: "Site-wide rollup across every path.",
+      args: { filter: t.arg({ type: TrafficFilterInput }) },
+      resolve: (site, args, ctx) =>
+        loadSiteMetrics({ db: ctx.db, siteIds: [site.id], filter: toTrafficFilter(args.filter) }),
     }),
     sessions: t.field({
       type: [SessionType],
       description: "Most recent sessions first.",
-      args: { limit: t.arg.int({ defaultValue: DEFAULT_SESSIONS_LIMIT }) },
+      args: { filter: t.arg({ type: TrafficFilterInput }), limit: t.arg.int({ defaultValue: DEFAULT_SESSIONS_LIMIT }) },
       resolve: (site, args, ctx) =>
         listSessionsForSite({
           db: ctx.db,
           siteId: site.id,
           limit: Math.min(args.limit ?? DEFAULT_SESSIONS_LIMIT, MAX_SESSIONS_LIMIT),
+          filter: toTrafficFilter(args.filter),
         }),
     }),
   }),
@@ -80,8 +85,9 @@ builder.queryFields((t) => ({
   }),
   pages: t.field({
     type: [PageType],
-    args: { siteId: t.arg.id({ required: true }) },
-    resolve: (_root, args, ctx) => listPagesForSite({ db: ctx.db, siteId: String(args.siteId) }),
+    args: { siteId: t.arg.id({ required: true }), filter: t.arg({ type: TrafficFilterInput }) },
+    resolve: (_root, args, ctx) =>
+      listPagesForSite({ db: ctx.db, siteId: String(args.siteId), filter: toTrafficFilter(args.filter) }),
   }),
 }));
 

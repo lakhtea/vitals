@@ -6,12 +6,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { MetricName } from "@/vitals/metrics";
 import type { Db } from "../index";
-
-/** Half-open: events with from <= recordedAt < to. Null means unbounded. */
-export interface TimeRange {
-  from: number | null;
-  to: number | null;
-}
+import { sessionDimensionSql, type TrafficFilter } from "./filter";
 
 export interface MetricSummaryRow {
   siteId: string;
@@ -36,19 +31,19 @@ const summarise = ({
   db,
   siteIds,
   paths,
-  range,
+  filter,
 }: {
   db: Db;
   siteIds: readonly string[];
   /** Null groups the whole site into one row per metric. */
   paths: readonly string[] | null;
-  range: TimeRange;
+  filter: TrafficFilter;
 }): MetricSummaryRow[] => {
   if (siteIds.length === 0 || paths?.length === 0) {
     return [];
   }
-  const from = range.from ?? 0;
-  const to = range.to ?? Number.MAX_SAFE_INTEGER;
+  const from = filter.from ?? 0;
+  const to = filter.to ?? Number.MAX_SAFE_INTEGER;
   const pathColumn = paths === null ? sql`NULL` : sql`pv.path`;
   const pathFilter = paths === null ? sql`` : sql`AND pv.path IN (${inList(paths)})`;
 
@@ -67,8 +62,9 @@ const summarise = ({
       JOIN sessions s ON s.id = pv.session_id
       WHERE s.site_id IN (${inList(siteIds)})
         ${pathFilter}
-        AND me.recorded_at >= ${from}
-        AND me.recorded_at < ${to}
+        AND pv.started_at >= ${from}
+        AND pv.started_at < ${to}
+        ${sessionDimensionSql(filter)}
     )
     SELECT
       site_id AS siteId,
@@ -91,20 +87,20 @@ export const loadPageMetrics = ({
   db,
   siteIds,
   paths,
-  range,
+  filter,
 }: {
   db: Db;
   siteIds: readonly string[];
   paths: readonly string[];
-  range: TimeRange;
-}): MetricSummaryRow[] => summarise({ db, siteIds, paths, range });
+  filter: TrafficFilter;
+}): MetricSummaryRow[] => summarise({ db, siteIds, paths, filter });
 
 export const loadSiteMetrics = ({
   db,
   siteIds,
-  range,
+  filter,
 }: {
   db: Db;
   siteIds: readonly string[];
-  range: TimeRange;
-}): MetricSummaryRow[] => summarise({ db, siteIds, paths: null, range });
+  filter: TrafficFilter;
+}): MetricSummaryRow[] => summarise({ db, siteIds, paths: null, filter });

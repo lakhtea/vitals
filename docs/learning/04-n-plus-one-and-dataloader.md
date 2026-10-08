@@ -7,7 +7,7 @@
 ## What was built
 
 - `MetricSummary`: p50, p75, p90, the p75's rating, sample count, and good/needs-improvement/poor buckets, for one metric.
-- `Page.metrics(from, to)` and `Site.metrics(from, to)`, over a half-open `[from, to)` range of `DateTime` arguments.
+- `Page.metrics(filter)` and `Site.metrics(filter)`, where `TrafficFilter` carries a half-open `[from, to)` window of `DateTime`s plus optional device class and connection type (the filter input arrived in M6; M4 shipped `from`/`to` arguments).
 - `Site.sessions(limit)`, `Session`, `Pageview`, and `Session.pageviews`.
 - A `DateTime` scalar and enums for `MetricName`, `MetricRating`, `DeviceClass`, `ConnectionType`.
 - A query counter and a measurement script, used to record this:
@@ -99,11 +99,11 @@ That is why the count is independent of N.
 
 One wrinkle you will hit: DataLoader insists the batch function returns a `Promise`, so the synchronous better-sqlite3 results are wrapped in `Promise.resolve`.
 
-## Why the key carries the time range
+## Why the key carries the filter
 
-`Page.metrics(from, to)` has arguments, and two fields in the same document could ask for different ranges.
-The key therefore includes the range, and `batchLoadPageMetrics` groups keys by range and runs one statement per distinct range.
-In the normal case every page shares the same range and it is one statement.
+`Page.metrics(filter)` has arguments, and two fields in the same document could ask for different filters.
+The key therefore includes the filter, and `batchLoadPageMetrics` groups keys by filter and runs one statement per distinct filter.
+In the normal case every page shares the same filter and it is one statement.
 The percentile SQL was written to accept lists of sites and paths precisely so the batch could hand it everything at once.
 
 ## The second relation
@@ -135,7 +135,7 @@ SQLite has no percentile function.
 
 This is the nearest-rank method: p75 is the smallest value such that at least 75% of samples are at or below it.
 For five values 1000..5000 the ranks for p50/p75/p90 are 3, 4, 5, giving 3000, 4000, 5000, which is what the test asserts.
-The range is half-open, `from <= recordedAt < to`, so "last 7 days" and "the 7 days before that" never both count the event on the boundary.
+The window is half-open on the pageview's start time, `from <= pageview.startedAt < to`, so "last 7 days" and "the 7 days before that" never both count a navigation, and a pageview's metrics always land in the same bucket as the pageview itself.
 
 ## Why every new file exists
 

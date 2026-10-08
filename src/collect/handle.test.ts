@@ -4,6 +4,7 @@
 import { count } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeDb, type Db } from "@/db";
+import { UNFILTERED } from "@/db/queries/filter";
 import { listPagesForSite } from "@/db/queries/pages";
 import { metricEvents, pageviews, sessions, sites } from "@/db/schema";
 import { rateMetric } from "@/vitals/metrics";
@@ -62,7 +63,7 @@ describe("POST /api/collect", () => {
 
     const stored = db.select().from(metricEvents).all();
     expect(stored.map((event) => event.rating)).toEqual(stored.map((event) => rateMetric(event)));
-    expect(listPagesForSite({ db, siteId: SITE_ID })).toEqual([
+    expect(listPagesForSite({ db, siteId: SITE_ID, filter: UNFILTERED })).toEqual([
       { siteId: SITE_ID, path: "/pricing", pageviewCount: 1, eventCount: 3 },
     ]);
 

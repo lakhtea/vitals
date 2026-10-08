@@ -1,8 +1,9 @@
 // Session listings and the batched pageview lookup behind Session.pageviews,
 // the second DataLoader relation (one statement for any number of sessions).
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Db } from "../index";
 import { pageviews, sessions } from "../schema";
+import { sessionDimensionConditions, type TrafficFilter } from "./filter";
 
 export type SessionRow = typeof sessions.$inferSelect;
 export type PageviewRow = typeof pageviews.$inferSelect;
@@ -11,12 +12,27 @@ export const listSessionsForSite = ({
   db,
   siteId,
   limit,
+  filter,
 }: {
   db: Db;
   siteId: string;
   limit: number;
+  filter: TrafficFilter;
 }): SessionRow[] =>
-  db.select().from(sessions).where(eq(sessions.siteId, siteId)).orderBy(desc(sessions.startedAt)).limit(limit).all();
+  db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.siteId, siteId),
+        ...sessionDimensionConditions(filter),
+        filter.from === null ? undefined : gte(sessions.startedAt, filter.from),
+        filter.to === null ? undefined : lt(sessions.startedAt, filter.to),
+      ),
+    )
+    .orderBy(desc(sessions.startedAt))
+    .limit(limit)
+    .all();
 
 /** Returns one array per requested session id, in the same order, each in visit order. */
 export const listPageviewsBySession = ({

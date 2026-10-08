@@ -48,8 +48,10 @@ type Page {
   """Metric events recorded on this path."""
   eventCount: Int!
 
-  """Per-metric percentiles for this path, optionally within [from, to)."""
-  metrics(from: DateTime, to: DateTime): [MetricSummary!]!
+  """
+  Per-metric percentiles for this path; pass the same filter you gave `pages`.
+  """
+  metrics(filter: TrafficFilter): [MetricSummary!]!
   pageviewCount: Int!
   path: String!
 }
@@ -62,7 +64,7 @@ type Pageview {
 }
 
 type Query {
-  pages(siteId: ID!): [Page!]!
+  pages(filter: TrafficFilter, siteId: ID!): [Page!]!
   site(id: ID!): Site
   sites: [Site!]!
 }
@@ -91,11 +93,23 @@ type Site {
   createdAt: DateTime!
   id: ID!
 
-  """Site-wide rollup across every path, optionally within [from, to)."""
-  metrics(from: DateTime, to: DateTime): [MetricSummary!]!
+  """Site-wide rollup across every path."""
+  metrics(filter: TrafficFilter): [MetricSummary!]!
   name: String!
-  pages: [Page!]!
+
+  """Paths with traffic, most viewed first."""
+  pages(filter: TrafficFilter): [Page!]!
 
   """Most recent sessions first."""
-  sessions(limit: Int = 50): [Session!]!
+  sessions(filter: TrafficFilter, limit: Int = 50): [Session!]!
+}
+
+"""
+Narrow traffic to a half-open time window [from, to) and/or session dimensions. Every field is optional.
+"""
+input TrafficFilter {
+  connectionType: ConnectionType
+  deviceClass: DeviceClass
+  from: DateTime
+  to: DateTime
 }

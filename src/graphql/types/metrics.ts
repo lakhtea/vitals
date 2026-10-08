@@ -1,7 +1,7 @@
 // MetricSummary: one metric's percentiles and rating buckets for a page or a
 // site. Backed directly by the SQL row so no mapping layer can drift from it;
 // the p75 rating is derived here because web.dev rates the p75, not the mean.
-import type { MetricSummaryRow, TimeRange } from "@/db/queries/metrics";
+import type { MetricSummaryRow } from "@/db/queries/metrics";
 import { rateMetric } from "@/vitals/metrics";
 import { builder } from "../builder";
 import { MetricNameEnum, MetricRatingEnum } from "../enums";
@@ -30,10 +30,3 @@ export const MetricSummaryType = builder.objectRef<MetricSummaryRow>("MetricSumm
     buckets: t.field({ type: RatingBucketsType, resolve: (row) => row }),
   }),
 });
-
-export interface TimeRangeArgs {
-  from?: number | null;
-  to?: number | null;
-}
-
-export const toTimeRange = (args: TimeRangeArgs): TimeRange => ({ from: args.from ?? null, to: args.to ?? null });

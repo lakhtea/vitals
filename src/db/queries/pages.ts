@@ -1,8 +1,9 @@
 // Per-path traffic aggregates for one site. Lives beside the schema rather than
 // inside a resolver so the SQL can be read and tested without GraphQL.
-import { count, countDistinct, desc, eq } from "drizzle-orm";
+import { and, count, countDistinct, desc, eq, gte, lt } from "drizzle-orm";
 import type { Db } from "../index";
 import { metricEvents, pageviews, sessions } from "../schema";
+import { sessionDimensionConditions, type TrafficFilter } from "./filter";
 
 export interface PageAggregate {
   siteId: string;
@@ -11,7 +12,15 @@ export interface PageAggregate {
   eventCount: number;
 }
 
-export const listPagesForSite = ({ db, siteId }: { db: Db; siteId: string }): PageAggregate[] =>
+export const listPagesForSite = ({
+  db,
+  siteId,
+  filter,
+}: {
+  db: Db;
+  siteId: string;
+  filter: TrafficFilter;
+}): PageAggregate[] =>
   db
     .select({
       siteId: sessions.siteId,
@@ -23,7 +32,14 @@ export const listPagesForSite = ({ db, siteId }: { db: Db; siteId: string }): Pa
     .from(pageviews)
     .innerJoin(sessions, eq(pageviews.sessionId, sessions.id))
     .leftJoin(metricEvents, eq(metricEvents.pageviewId, pageviews.id))
-    .where(eq(sessions.siteId, siteId))
+    .where(
+      and(
+        eq(sessions.siteId, siteId),
+        ...sessionDimensionConditions(filter),
+        filter.from === null ? undefined : gte(pageviews.startedAt, filter.from),
+        filter.to === null ? undefined : lt(pageviews.startedAt, filter.to),
+      ),
+    )
     .groupBy(sessions.siteId, pageviews.path)
     .orderBy(desc(countDistinct(pageviews.id)), pageviews.path)
     .all();
