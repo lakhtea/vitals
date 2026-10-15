@@ -195,7 +195,8 @@ describe("detectIncidents on the seeded demo", () => {
 });
 
 describe("detectIncidents on the stress seed", () => {
-  it("opens nothing: the benchmark data set is detector-clean", () => {
+  // Seeds about 100,000 events: 1.2 s locally, 5.8 s on a CI runner with coverage on, so it gets its own budget.
+  it("opens nothing: the benchmark data set is detector-clean", { timeout: 30_000 }, () => {
     const stressDb = makeDb(":memory:");
     seedStress(stressDb, NOW);
 
