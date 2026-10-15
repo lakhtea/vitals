@@ -52,6 +52,9 @@ Steps for you:
 Nothing in M12 to M14 needs your accounts.
 One thing to know from M12: the seed gives the two demo sites fixed write keys (`demo-write-key`, `vitals-dashboard-write-key`) so the loop works locally without setup.
 They are public in the repo, which is fine for the ephemeral, rate-limited demo; for any instance holding real data, set a real key with `UPDATE sites SET write_key = '<random>' WHERE id = '<site>'`.
+One check from M13 only you can run: open this repo in Claude Code with `VITALS_SERVICE_TOKEN` exported (the same value `npm run dev` was started with), approve the project's `vitals` MCP server when Claude Code asks, and ask it to list open incidents and record a step.
+The stdio server was verified with a script against a live API, but not from inside Claude Code; chapter 13 has the walkthrough.
+
 M15 does need your accounts:
 
 - **Anthropic API key** for live runs of the worker (`ant auth login`, or `ANTHROPIC_API_KEY` in the worker's env).
@@ -93,3 +96,4 @@ M15 does need your accounts:
 - 2026-10-14: plan amended for the two tiers; M12 to M14 section added with the worker's key, token, ECS, and persistence notes; repo description and topics updated.
 - 2026-10-14 (later): the fix review editor is M14 and the triage worker is M15; section renamed, nothing new needed from you.
 - 2026-10-15: M12 built; note on the public demo write keys added.
+- 2026-10-15: M13 built; the one Claude Code check above added.

@@ -4,21 +4,22 @@
 import { eq } from "drizzle-orm";
 import { GraphQLError } from "graphql";
 import { listLatestChecksForSite } from "@/db/queries/checks";
-import { decideIncident, getIncident, listIncidentsForSite } from "@/db/queries/incidents";
+import { decideIncident, getIncident, listIncidentsForSite, transitionIncident } from "@/db/queries/incidents";
 import { loadSiteMetrics } from "@/db/queries/metrics";
 import { type PageAggregate, listPagesForSite } from "@/db/queries/pages";
 import { listSessionsForSite } from "@/db/queries/sessions";
+import { recordStep } from "@/db/queries/steps";
 import { type IncidentRow, type SiteRow, sites } from "@/db/schema";
 import { detectIncidents } from "@/incidents/detect";
 import type { HumanDecision } from "@/incidents/vocabulary";
 import { builder } from "./builder";
-import type { Context } from "./context";
-import { IncidentStatusEnum } from "./enums";
-import { toTrafficFilter, TrafficFilterInput } from "./inputs";
+import { type Context, requireService } from "./context";
+import { IncidentStatusEnum, StepRoleEnum, StepStatusEnum } from "./enums";
+import { StepUsageInput, toStepUsage, toTrafficFilter, TrafficFilterInput } from "./inputs";
 import { batchLoadPageMetrics, pageMetricsCacheKey, type PageMetricsKey } from "./loaders/page-metrics";
 import "./scalars";
 import { CheckType } from "./types/checks";
-import { DetectionResultType, IncidentType } from "./types/incidents";
+import { DetectionResultType, IncidentStepType, IncidentType } from "./types/incidents";
 import { MetricSummaryType } from "./types/metrics";
 import { SessionType } from "./types/sessions";
 
@@ -145,6 +146,15 @@ const applyHumanDecision = ({
   return result.incident;
 };
 
+/** An id that names no incident is an error for a write, where the read field would return null. */
+const requireIncidentId = (id: string | number): number => {
+  const incidentId = parseIncidentId(id);
+  if (incidentId === null) {
+    throw new GraphQLError(`No incident with id "${id}"`);
+  }
+  return incidentId;
+};
+
 builder.queryFields((t) => ({
   sites: t.field({
     type: [SiteType],
@@ -199,6 +209,78 @@ builder.mutationFields((t) => ({
     description: "A human closes the incident as noise or not worth acting on. Allowed from any live status; refused once decided or resolved.",
     args: { id: t.arg.id({ required: true }), note: t.arg.string() },
     resolve: (_root, args, ctx) => applyHumanDecision({ ctx, id: args.id, decision: "dismissed", note: args.note }),
+  }),
+  recordStep: t.field({
+    type: IncidentStepType,
+    description:
+      "An agent appends one step to an incident's timeline. Needs the service token. Refused for role HUMAN (people decide through approveIncident and dismissIncident) and for a dismissed or resolved incident.",
+    args: {
+      incidentId: t.arg.id({ required: true }),
+      role: t.arg({ type: StepRoleEnum, required: true }),
+      status: t.arg({ type: StepStatusEnum, required: true }),
+      summary: t.arg.string({ required: true, description: "One line, 1 to 300 characters after trimming." }),
+      detail: t.arg.string({ description: "The long form, at most 20,000 characters." }),
+      startedAt: t.arg({ type: "DateTime", description: "Defaults to now." }),
+      finishedAt: t.arg({ type: "DateTime", description: "Must not be before startedAt." }),
+      usage: t.arg({ type: StepUsageInput }),
+      link: t.arg.string({ description: "An http(s) URL: the PR, a trace, a commit." }),
+    },
+    resolve: (_root, args, ctx) => {
+      requireService(ctx);
+      const id = String(args.incidentId);
+      const result = recordStep({
+        db: ctx.db,
+        input: {
+          incidentId: requireIncidentId(id),
+          role: args.role,
+          status: args.status,
+          summary: args.summary,
+          detail: args.detail ?? null,
+          startedAt: args.startedAt ?? null,
+          finishedAt: args.finishedAt ?? null,
+          usage: toStepUsage(args.usage),
+          link: args.link ?? null,
+        },
+        now: Date.now(),
+      });
+      if (result.ok) {
+        return result.step;
+      }
+      switch (result.reason) {
+        case "human-role":
+          throw new GraphQLError("Agents cannot record HUMAN steps; a person decides through approveIncident or dismissIncident");
+        case "invalid":
+          throw new GraphQLError(result.message);
+        case "not-found":
+          throw new GraphQLError(`No incident with id "${id}"`);
+        case "terminal":
+          throw new GraphQLError(`Incident ${id} is "${result.status}"; a closed incident takes no more steps`);
+      }
+    },
+  }),
+  transitionIncident: t.field({
+    type: IncidentType,
+    description:
+      "An agent moves an incident one stage along OPEN -> TRIAGED -> FIX_PROPOSED -> REVIEWED -> AWAITING_HUMAN. Needs the service token. Refused for any other target and for skipping a stage.",
+    args: { id: t.arg.id({ required: true }), to: t.arg({ type: IncidentStatusEnum, required: true }) },
+    resolve: (_root, args, ctx) => {
+      requireService(ctx);
+      const id = String(args.id);
+      const result = transitionIncident({ db: ctx.db, id: requireIncidentId(id), to: args.to, now: Date.now() });
+      if (result.ok) {
+        return result.incident;
+      }
+      switch (result.reason) {
+        case "not-agent-target":
+          throw new GraphQLError(
+            `Agents cannot move an incident to "${result.to}": approving and dismissing belong to a person, opening and resolving to the detector`,
+          );
+        case "not-found":
+          throw new GraphQLError(`No incident with id "${id}"`);
+        case "illegal-transition":
+          throw new GraphQLError(`Incident ${id} cannot move from "${result.from}" to "${result.to}"`);
+      }
+    },
   }),
 }));
 

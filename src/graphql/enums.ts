@@ -16,24 +16,31 @@ export const MetricRatingEnum = builder.enumType("MetricRating", {
   } as const,
 });
 
-export const DeviceClassEnum = builder.enumType("DeviceClass", {
-  values: {
-    DESKTOP: { value: "desktop" },
-    MOBILE: { value: "mobile" },
-    TABLET: { value: "tablet" },
-    UNKNOWN: { value: "unknown" },
-  } as const,
-});
+/** Exported so code that prints a dimension value (the incident breakdown) uses the wire spelling. */
+export const DEVICE_CLASS_ENUM_VALUES = {
+  DESKTOP: { value: "desktop" },
+  MOBILE: { value: "mobile" },
+  TABLET: { value: "tablet" },
+  UNKNOWN: { value: "unknown" },
+} as const;
 
-export const ConnectionTypeEnum = builder.enumType("ConnectionType", {
-  values: {
-    SLOW_2G: { value: "slow-2g" },
-    TWO_G: { value: "2g" },
-    THREE_G: { value: "3g" },
-    FOUR_G: { value: "4g" },
-    UNKNOWN: { value: "unknown" },
-  } as const,
-});
+export const CONNECTION_TYPE_ENUM_VALUES = {
+  SLOW_2G: { value: "slow-2g" },
+  TWO_G: { value: "2g" },
+  THREE_G: { value: "3g" },
+  FOUR_G: { value: "4g" },
+  UNKNOWN: { value: "unknown" },
+} as const;
+
+export const DeviceClassEnum = builder.enumType("DeviceClass", { values: DEVICE_CLASS_ENUM_VALUES });
+
+export const ConnectionTypeEnum = builder.enumType("ConnectionType", { values: CONNECTION_TYPE_ENUM_VALUES });
+
+/** The wire name for a database value, e.g. "4g" -> "FOUR_G". */
+export const enumNameOf = (
+  values: Readonly<Record<string, { readonly value: string }>>,
+  value: string,
+): string => Object.entries(values).find(([, entry]) => entry.value === value)?.[0] ?? value;
 
 /**
  * "fix-proposed" on the database side becomes FIX_PROPOSED on the wire, the

@@ -1,4 +1,17 @@
 """
+One device class or connection type, measured in both evidence windows.
+"""
+type BreakdownRow {
+  baselineP75: Float
+  baselineSampleCount: Int!
+  currentP75: Float
+  currentSampleCount: Int!
+
+  """Display value of the dimension, e.g. MOBILE or FOUR_G."""
+  value: String!
+}
+
+"""
 A health check an application reports, shown at its latest observation.
 """
 type Check {
@@ -93,6 +106,11 @@ enum DeviceClass {
 Something the detector decided a human should look at: a vitals regression or a failing health check.
 """
 type Incident {
+  """
+  Per device class and connection type, over the two windows frozen in the evidence; null for health-check incidents. Two statements per incident, so ask for it on the detail view, not the list.
+  """
+  breakdown: IncidentBreakdown
+
   """Set when `source` is HEALTH_CHECK."""
   checkEvidence: CheckEvidence
   detectedAt: DateTime!
@@ -119,6 +137,11 @@ type Incident {
 
   """Set when `source` is WEB_VITALS."""
   vitalsEvidence: VitalsEvidence
+}
+
+type IncidentBreakdown {
+  byConnection: [BreakdownRow!]!
+  byDevice: [BreakdownRow!]!
 }
 
 """Which detector opened the incident."""
@@ -207,6 +230,35 @@ type Mutation {
   A human closes the incident as noise or not worth acting on. Allowed from any live status; refused once decided or resolved.
   """
   dismissIncident(id: ID!, note: String): Incident!
+
+  """
+  An agent appends one step to an incident's timeline. Needs the service token. Refused for role HUMAN (people decide through approveIncident and dismissIncident) and for a dismissed or resolved incident.
+  """
+  recordStep(
+    """The long form, at most 20,000 characters."""
+    detail: String
+
+    """Must not be before startedAt."""
+    finishedAt: DateTime
+    incidentId: ID!
+
+    """An http(s) URL: the PR, a trace, a commit."""
+    link: String
+    role: StepRole!
+
+    """Defaults to now."""
+    startedAt: DateTime
+    status: StepStatus!
+
+    """One line, 1 to 300 characters after trimming."""
+    summary: String!
+    usage: StepUsageInput
+  ): IncidentStep!
+
+  """
+  An agent moves an incident one stage along OPEN -> TRIAGED -> FIX_PROPOSED -> REVIEWED -> AWAITING_HUMAN. Needs the service token. Refused for any other target and for skipping a stage.
+  """
+  transitionIncident(id: ID!, to: IncidentStatus!): Incident!
 }
 
 """Traffic for one URL path, aggregated over its pageviews."""
@@ -294,6 +346,16 @@ enum StepStatus {
   FAILED
   RUNNING
   SUCCEEDED
+}
+
+"""
+What the model call behind a step cost. Every field is optional; numbers must not be negative.
+"""
+input StepUsageInput {
+  costUsd: Float
+  inputTokens: Int
+  model: String
+  outputTokens: Int
 }
 
 """

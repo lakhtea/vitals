@@ -414,3 +414,48 @@ The unique index on live incidents uses one, so a resolved incident does not blo
 **JSON column.**
 A text column holding a JSON document, declared with Drizzle's `mode: "json"` so the row type is the TypeScript shape.
 Used for incident evidence, whose shape differs per source; the columns everyone filters on stay real columns.
+
+## Agents and MCP
+
+**MCP (Model Context Protocol).**
+An open protocol, published by Anthropic in 2024, for connecting models to tools and data: a server describes its capabilities once and any MCP host can use them.
+Vitals exposes its incidents to agents through an MCP server in `services/vitals-mcp`.
+
+**MCP host, client, and server.**
+The host is the application a model runs in (Claude Code, the M15 worker); it opens one client connection per server; the server is the process offering tools.
+Our server holds no model; it translates tool calls into GraphQL.
+
+**JSON-RPC 2.0.**
+The message format MCP uses: requests with an id, a method, and params, answered by a response with the same id and a result or an error.
+
+**MCP tool.**
+A function the model chooses to call, described by a name, a description written for the model, and a JSON Schema for its input.
+A tool that ran and failed returns a result with `isError: true`, so the model can read the reason and recover.
+
+**MCP resource and prompt.**
+A resource is data the host reads by URI and places in front of the model; a prompt is a template a person picks.
+Vitals uses neither yet: agents choose which incident to read, which makes it a tool.
+
+**stdio transport.**
+The host starts the MCP server as a child process and they exchange newline-delimited JSON over stdin and stdout.
+Anything else printed to stdout corrupts the stream, so the server logs to stderr.
+
+**Service token.**
+A shared secret a program, not a person, presents on every request (`VITALS_SERVICE_TOKEN` as a bearer token).
+Only the agent mutations require it; people are unauthenticated in single-tenant v1.
+
+**Agent path.**
+The statuses an agent may move an incident through: triaged, fix proposed, reviewed, awaiting human.
+`transitionIncident` refuses anything else, so approving and dismissing stay with people.
+
+**Defence in depth.**
+Two independent safeguards for one rule, so a failure of either does not break it.
+Here: no MCP tool can approve an incident, and the resolver refuses an agent's approval even if a client bypasses the tools.
+
+**Health probe.**
+A scheduled request to an application's health URL whose timing and status are classified and pushed as a check result.
+`npm run checks:probe` lets Vitals watch applications that report nothing themselves.
+
+**Breakdown.**
+The same p75 split by one dimension, here device class and connection type, over the incident's two windows.
+It answers "who got slower", which is the first question when triaging a regression.

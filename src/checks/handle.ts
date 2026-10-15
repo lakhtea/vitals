@@ -3,8 +3,8 @@
 // /api/collect it answers servers, not browsers: every call must carry the
 // site's write key, and there are no CORS headers because a page could never
 // hold that key honestly. Every failure is a typed JSON error with a stable code.
-import { timingSafeEqual } from "node:crypto";
 import type { z } from "zod";
+import { bearerToken, isSameSecret } from "@/auth/bearer";
 import type { Db } from "@/db";
 import { findSiteCredential, ingestChecks } from "./ingest";
 import { MAX_BODY_BYTES, makeChecksPayloadSchema } from "./payload";
@@ -50,27 +50,6 @@ const parseJson = (text: string): ParsedJson => {
   } catch {
     return { ok: false };
   }
-};
-
-/** The token from `Authorization: Bearer <token>`, or null when the header is missing or malformed. */
-const bearerToken = (request: Request): string | null => {
-  const header = request.headers.get("authorization");
-  if (header === null) {
-    return null;
-  }
-  const [scheme, token, ...rest] = header.trim().split(/\s+/);
-  if (scheme === undefined || scheme.toLowerCase() !== "bearer" || token === undefined || rest.length > 0) {
-    return null;
-  }
-  return token;
-};
-
-// Constant-time, so how long the comparison takes cannot tell a guesser how
-// much of the key was right. The length check leaks only the key's length.
-const isSameKey = ({ presented, expected }: { presented: string; expected: string }): boolean => {
-  const presentedBytes = Buffer.from(presented);
-  const expectedBytes = Buffer.from(expected);
-  return presentedBytes.length === expectedBytes.length && timingSafeEqual(presentedBytes, expectedBytes);
 };
 
 export const handleChecks = async ({
@@ -122,7 +101,7 @@ export const handleChecks = async ({
   }
 
   const presented = bearerToken(request);
-  if (site.writeKey === null || presented === null || !isSameKey({ presented, expected: site.writeKey })) {
+  if (site.writeKey === null || presented === null || !isSameSecret({ presented, expected: site.writeKey })) {
     return errorResponse({
       status: 401,
       code: "invalid_write_key",

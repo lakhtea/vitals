@@ -32,7 +32,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["src/**/*.test.ts"],
+          // services/ holds the MCP server, which runs in Node beside the app.
+          include: ["src/**/*.test.ts", "services/**/*.test.ts"],
           environment: "node",
         },
       },

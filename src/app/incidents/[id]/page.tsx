@@ -60,6 +60,11 @@ export default async function IncidentPage({ params }: IncidentPageProps): Promi
         <h2 id="decision-heading" className={styles.gateTitle}>
           Your decision
         </h2>
+        {incident.status === "awaiting-human" && (
+          <p className={styles.callout}>
+            The agents have finished their steps and stopped here. Nothing leaves the repository until you approve.
+          </p>
+        )}
         <IncidentDecision incidentId={incident.id} status={incident.status} />
       </section>
     </main>

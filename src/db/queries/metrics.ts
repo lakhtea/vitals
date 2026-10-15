@@ -33,8 +33,8 @@ export interface PathMetricSummaryRow extends MetricSummaryRow {
  */
 type Grouping = { by: "site" } | { by: "path"; paths: readonly string[] | null };
 
-/** ceil(percent% of n) with integer arithmetic, which SQLite lacks a CEIL for. */
-const nearestRank = (percent: number): SQL => sql.raw(`(sample_count * ${percent} + 99) / 100`);
+/** ceil(percent% of n) with integer arithmetic, which SQLite lacks a CEIL for; expects a `sample_count` column in scope. */
+export const nearestRank = (percent: number): SQL => sql.raw(`(sample_count * ${percent} + 99) / 100`);
 
 const inList = (values: readonly string[]): SQL => sql.join(values.map((value) => sql`${value}`), sql`, `);
 
