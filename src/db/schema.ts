@@ -1,7 +1,19 @@
-// The four tables of the RUM domain, declared once so Drizzle derives both the
-// SQL (through drizzle-kit migrations in ./drizzle) and the row types from them.
-// All timestamps are integer milliseconds since the Unix epoch, UTC.
+// The tables of the RUM domain, declared once so Drizzle derives both the SQL
+// (through drizzle-kit migrations in ./drizzle) and the row types from them.
+// Four carry traffic (sites, sessions, pageviews, metric_events); three carry
+// operations (checks, incidents, incident_steps, from M12). All timestamps are
+// integer milliseconds since the Unix epoch, UTC.
+import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { CHECK_STATUSES } from "../checks/status";
+import type { IncidentEvidence } from "../incidents/evidence";
+import {
+  INCIDENT_SOURCES,
+  INCIDENT_STATUSES,
+  STEP_ROLES,
+  STEP_STATUSES,
+  TERMINAL_INCIDENT_STATUSES,
+} from "../incidents/vocabulary";
 import { CONNECTION_TYPES, DEVICE_CLASSES } from "../vitals/dimensions";
 import { METRIC_NAMES, METRIC_RATINGS } from "../vitals/metrics";
 
@@ -10,6 +22,12 @@ export const sites = sqliteTable("sites", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   createdAt: integer("created_at").notNull(),
+  /**
+   * The shared secret an application presents to POST /api/checks. Browsers
+   * post vitals without one (a key in a web page is public anyway); servers
+   * reporting health must hold it. Null means the site accepts no checks.
+   */
+  writeKey: text("write_key"),
 });
 
 export const sessions = sqliteTable(
@@ -65,7 +83,108 @@ export const metricEvents = sqliteTable(
   ],
 );
 
+/**
+ * One health-check observation pushed by an application: "api-latency-p95 was
+ * degraded at 412 ms at 10:04". The latest row per (site, check) is the
+ * check's current status; the history is what the detector and the detail
+ * page read.
+ */
+export const checks = sqliteTable(
+  "checks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    siteId: text("site_id")
+      .notNull()
+      .references(() => sites.id),
+    /** The application's own stable identifier for the check, e.g. "api-latency-p95". */
+    checkId: text("check_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status", { enum: CHECK_STATUSES }).notNull(),
+    value: real("value"),
+    unit: text("unit"),
+    observedAt: integer("observed_at").notNull(),
+    detail: text("detail"),
+  },
+  (table) => [
+    // The same observation delivered twice (a retry) is a no-op, as for metric events.
+    uniqueIndex("checks_dedupe_idx").on(table.siteId, table.checkId, table.observedAt),
+  ],
+);
+
+/**
+ * Something the detector decided a human should look at: a vitals regression
+ * on one path and metric, or a health check that is failing. One live
+ * incident per subject at a time; the partial unique index below enforces it
+ * at the database, the detector checks it first so the error path is never hit.
+ */
+export const incidents = sqliteTable(
+  "incidents",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    siteId: text("site_id")
+      .notNull()
+      .references(() => sites.id),
+    source: text("source", { enum: INCIDENT_SOURCES }).notNull(),
+    /** The path for a vitals regression, the check id for a health check. */
+    subject: text("subject").notNull(),
+    /** The metric for a vitals regression; null for a health check. */
+    metric: text("metric", { enum: METRIC_NAMES }),
+    status: text("status", { enum: INCIDENT_STATUSES }).notNull(),
+    detectedAt: integer("detected_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    resolvedAt: integer("resolved_at"),
+    /** Why the incident exists; shape per source, see src/incidents/evidence.ts. */
+    evidence: text("evidence", { mode: "json" }).$type<IncidentEvidence>().notNull(),
+    /** The human's note when approving or dismissing. */
+    note: text("note"),
+  },
+  (table) => [
+    index("incidents_site_detected_idx").on(table.siteId, table.detectedAt),
+    uniqueIndex("incidents_one_live_per_subject_idx")
+      .on(table.siteId, table.source, table.subject, table.metric)
+      // SQLite forbids bound parameters in a partial index, so the list is spliced in as literals.
+      .where(sql.raw(`status NOT IN (${TERMINAL_INCIDENT_STATUSES.map((status) => `'${status}'`).join(", ")})`)),
+  ],
+);
+
+/**
+ * The record of who did what to an incident: each agent's work (from M15) and
+ * each human decision, in order. The detail page renders this as the evidence
+ * trail; the cost and token columns are what the README's per-incident
+ * numbers will be measured from.
+ */
+export const incidentSteps = sqliteTable(
+  "incident_steps",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    incidentId: integer("incident_id")
+      .notNull()
+      .references(() => incidents.id),
+    role: text("role", { enum: STEP_ROLES }).notNull(),
+    status: text("status", { enum: STEP_STATUSES }).notNull(),
+    startedAt: integer("started_at").notNull(),
+    finishedAt: integer("finished_at"),
+    /** One line a human can read in the timeline. */
+    summary: text("summary").notNull(),
+    /** The long form: what the agent saw and concluded, or the human's note. */
+    detail: text("detail"),
+    model: text("model"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    costUsd: real("cost_usd"),
+    /** A URL to follow: the PR, a trace, a commit. */
+    link: text("link"),
+  },
+  (table) => [index("incident_steps_incident_started_idx").on(table.incidentId, table.startedAt)],
+);
+
 export type SiteRow = typeof sites.$inferSelect;
+export type CheckRow = typeof checks.$inferSelect;
+export type CheckInsert = typeof checks.$inferInsert;
+export type IncidentRow = typeof incidents.$inferSelect;
+export type IncidentInsert = typeof incidents.$inferInsert;
+export type IncidentStepRow = typeof incidentSteps.$inferSelect;
+export type IncidentStepInsert = typeof incidentSteps.$inferInsert;
 export type SessionInsert = typeof sessions.$inferInsert;
 export type PageviewInsert = typeof pageviews.$inferInsert;
 export type MetricEventInsert = typeof metricEvents.$inferInsert;

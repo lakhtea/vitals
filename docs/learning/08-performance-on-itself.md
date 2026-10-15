@@ -14,6 +14,7 @@ It is behind a flag because the unit tests and the e2e suite must stay fast, and
 Measured on the development machine (SQLite 3.53, WAL mode): 2,000 sessions, 21,265 pageviews, 100,136 metric events in 0.8 seconds of in-process time (just over a second of wall time including startup).
 A second run inserted nothing and left every count identical.
 Running the normal demo seed on top added exactly its own 50 sessions, 104 pageviews, and 487 events.
+(Since M12 the demo seed also plants an incident fixture, 60 more sessions and 286 events on `/pricing`; chapter 12 explains it.)
 One SQLite detail worth knowing: rows skipped by `ON CONFLICT DO NOTHING` still consume `AUTOINCREMENT` ids, so after a re-run the sequence is ahead of `max(id)`; harmless, but it explains the gaps.
 
 Inserting that many rows teaches one SQLite fact immediately: a single `INSERT ... VALUES (...), (...)` is limited by the number of bound parameters (32,766), so the seed writes in chunks inside one transaction.

@@ -254,6 +254,25 @@ Options: a pull connector per application (an adapter to maintain for every shap
 Choice: `POST /api/checks`, validated and idempotent like `/api/collect`, plus one generic HTTP probe (`npm run checks:probe`) that turns any `/healthz`-style endpoint into a push, which proves the boundary against an application we do not control.
 Tradeoff: an application has to send something, but there is exactly one contract to document and test.
 
+### Deterministic detection: two windows, a sample floor, two triggers
+Written before M12 was built.
+An incident detector has two ways to be useless: it wakes people for noise, or it stays quiet while a page gets slow.
+Options: an anomaly model over the time series (opaque, hard to explain in a chapter, hard to test by hand); alert on every rating-band change (fires whenever a p75 sits near a threshold); compare two fixed windows with a minimum sample count.
+Choice: the detector compares the last 24 hours with the 24 hours before it, per page and metric, and only judges a pair where both windows hold at least 20 samples.
+It fires on a p75 increase of 50% or more, or on an increase of 20% or more when the web.dev rating band also worsened; it never fires on a band change alone.
+A health check opens an incident on the first `failing` observation and only after three consecutive `degraded` ones.
+Every number lives in `DETECTION_RULES` in `src/incidents/detector.ts` and is explained in chapter 12.
+Tradeoff: a slow regression that creeps a few percent a day is invisible to a two-window comparison, and a low-traffic page never reaches the sample floor; both are accepted because a blip that wakes a human costs more trust than a slow drift that a weekly look at the dashboard catches.
+Measured weakness: on two days of unchanged stress traffic the rules opened four CLS incidents, because CLS's p75 is unstable at tens of samples; chapter 12 has the numbers, and a per-metric floor is parked in PLAN.md rather than tuned in quietly.
+
+### A per-site write key for `/api/checks` while `/api/collect` stays open
+`/api/collect` is open on purpose: a browser cannot keep a secret, so a key in a web page protects nothing.
+Health checks are different: they come from servers, and a forged `failing` check would open an incident that an agent then tries to fix.
+Options: leave both endpoints open; one global token for the whole installation; a key per site.
+Choice: `sites.write_key`, presented as `Authorization: Bearer <key>` on `/api/checks`; a site with no key accepts no checks.
+The seed gives the demo sites fixed keys so the loop can be driven locally without configuration.
+Tradeoff: one more thing to configure per site, and the key is a shared secret rather than a signature, which is enough for a self-hosted single-tenant tool and would be the first thing to revisit for multi-tenant hosting.
+
 ## Server/client boundary
 
 The overview is a Server Component tree with `"use client"` only at the
@@ -294,8 +313,9 @@ would make React throw the server HTML away.
 | `site { pages { metrics } }` SQL statements, N = 10 seeded pages ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | 12 = 2 + N (naive) | 3 (DataLoader) |
 | `site { sessions(limit: 20) { pageviews } }` SQL statements ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | not measured (built batched from the start) | 3 (DataLoader) |
 | Sessions table with 2,000 rows: `<tr>` in the DOM / median time to first row, 5 runs ([method](./scripts/measure-render.ts), `npm run build-storybook && npm run measure:render`) | 2,001 / 155 ms | 26 / 91 ms (windowed) |
-| First Load JS for `/`, raw bytes, JS only ([method](./scripts/check-bundle-budget.ts), `npm run build && npm run measure:bundle`) | 689,831 B (about 200 KB gzip) | CI fails above +10% ([baseline](./bundle-budget.json)) |
+| First Load JS for `/`, raw bytes, JS only ([method](./scripts/check-bundle-budget.ts), `npm run build && npm run check:bundle`) | 689,831 B (about 200 KB gzip), the M8 baseline | 728,715 B after M12 added the incidents table and health panel (+5.6%); CI fails above +10% ([baseline](./bundle-budget.json)) |
 | Stress seed: 2,000 sessions / 21,265 pageviews / 100,136 events (`npm run db:seed:stress`) | n/a | 0.8 s to insert, idempotent on rerun |
+| Incidents opened by `npm run db:seed && npm run incidents:detect` on a fresh database ([pinned by test](./src/incidents/detect.test.ts)) | n/a | 2 (the planted `/pricing` LCP regression, p75 2,861 ms to 7,153 ms, and the failing `api-health` check); a rerun opens 0 |
 | This dashboard's own p75 LCP / CLS / INP | n/a | TBD (needs the M3 library) |
 
 ## Collecting data: `POST /api/collect`
@@ -335,6 +355,40 @@ Ids for the session, pageview, and each event are chosen by the sender
 what makes retries and double flushes harmless. Ratings are recomputed
 server-side from the value. Full reasoning in
 [docs/learning/02-ingestion.md](./docs/learning/02-ingestion.md).
+
+## Reporting health: `POST /api/checks`
+
+Any application can push the results of its own health checks, and the detector turns a failing check into an incident beside the vitals regressions.
+Send JSON with the site's write key as a bearer token; one request carries up to 50 observations.
+
+```json
+{
+  "siteId": "demo",
+  "checks": [
+    { "id": "api-health",     "name": "API health",           "status": "failing", "observedAt": 1760480000000, "detail": "HTTP 503 from /healthz" },
+    { "id": "db-latency-p95", "name": "Database latency p95", "status": "ok",      "observedAt": 1760480000000, "value": 48, "unit": "ms" }
+  ]
+}
+```
+
+```bash
+curl -s -X POST http://localhost:3000/api/checks \
+  -H 'authorization: Bearer demo-write-key' \
+  -d '{"siteId":"demo","checks":[{"id":"api-health","name":"API health","status":"failing","observedAt":'$(date +%s000)',"detail":"HTTP 503 from /healthz"}]}'
+```
+
+| Status | `error.code` | Meaning |
+| ------ | ------------ | ------- |
+| 202 | | Stored. Body: `{ "inserted": n, "duplicates": d }`; the same observation delivered twice is counted once. |
+| 400 | `invalid_json` | Body is not JSON. |
+| 401 | `invalid_write_key` | Missing or wrong bearer token, or the site has no write key. |
+| 422 | `invalid_payload` | Shape, enum, or range violation; `error.issues[].path` names the field. |
+| 413 | `batch_too_large` / `payload_too_large` | More than 50 checks, or more than 64 KB. |
+| 404 | `unknown_site` | `siteId` is not configured. |
+| 429 | `rate_limited` | Demo mode only; honour `retry-after`. |
+
+`status` is `ok`, `degraded`, or `failing`; `value`, `unit`, and `detail` are optional.
+The latest observation per check id is what the dashboard's health panel shows; the history is what the detector reads.
 
 ## Development
 

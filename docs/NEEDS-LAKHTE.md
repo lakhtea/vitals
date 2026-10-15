@@ -50,7 +50,9 @@ Steps for you:
 ## M12 to M15: incidents, the MCP boundary, the fix review editor, and the triage worker (added 2026-10-14)
 
 Nothing in M12 to M14 needs your accounts.
-M15 does:
+One thing to know from M12: the seed gives the two demo sites fixed write keys (`demo-write-key`, `vitals-dashboard-write-key`) so the loop works locally without setup.
+They are public in the repo, which is fine for the ephemeral, rate-limited demo; for any instance holding real data, set a real key with `UPDATE sites SET write_key = '<random>' WHERE id = '<site>'`.
+M15 does need your accounts:
 
 - **Anthropic API key** for live runs of the worker (`ant auth login`, or `ANTHROPIC_API_KEY` in the worker's env).
   CI and the Vercel demo use recorded fixtures and need no key.
@@ -90,3 +92,4 @@ M15 does:
 - 2026-10-07 (late): M10 decision made and demo-mode code built; the Vercel steps above are concrete. M11 build-story draft added for sign-off; repo description and topics suggested.
 - 2026-10-14: plan amended for the two tiers; M12 to M14 section added with the worker's key, token, ECS, and persistence notes; repo description and topics updated.
 - 2026-10-14 (later): the fix review editor is M14 and the triage worker is M15; section renamed, nothing new needed from you.
+- 2026-10-15: M12 built; note on the public demo write keys added.

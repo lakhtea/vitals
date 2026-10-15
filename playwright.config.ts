@@ -24,7 +24,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `${resetE2eDb} && npm run db:seed && npm run dev`,
+    command: `${resetE2eDb} && npm run db:seed && npm run incidents:detect && npm run dev`,
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     env: { VITALS_DB_PATH: E2E_DB_PATH },

@@ -1,3 +1,63 @@
+"""
+A health check an application reports, shown at its latest observation.
+"""
+type Check {
+  """The application's own stable identifier, e.g. api-latency-p95."""
+  checkId: String!
+  detail: String
+
+  """
+  Past observations including this one, newest first. `limit` is clamped to 1..200.
+  """
+  history(limit: Int = 20): [CheckObservation!]!
+  name: String!
+  observedAt: DateTime!
+  status: CheckStatus!
+  unit: String
+
+  """The measurement behind the status, if the check has one."""
+  value: Float
+}
+
+"""
+Why a health-check incident was opened: the observation that tripped the detector.
+"""
+type CheckEvidence {
+  checkId: String!
+
+  """How many observations in a row have been at `status`."""
+  consecutive: Int!
+  detail: String
+  name: String!
+  observedAt: DateTime!
+
+  """
+  The status observed before this one; null for a check's first observation.
+  """
+  previousStatus: CheckStatus
+  status: CheckStatus!
+  unit: String
+  value: Float
+}
+
+"""One result an application reported for a check."""
+type CheckObservation {
+  detail: String
+  observedAt: DateTime!
+  status: CheckStatus!
+  unit: String
+
+  """The measurement behind the status, if the check has one."""
+  value: Float
+}
+
+"""What an application reported about one of its checks."""
+enum CheckStatus {
+  DEGRADED
+  FAILING
+  OK
+}
+
 enum ConnectionType {
   FOUR_G
   SLOW_2G
@@ -9,11 +69,100 @@ enum ConnectionType {
 """An ISO 8601 date-time string, e.g. 2026-10-07T12:00:00.000Z."""
 scalar DateTime
 
+"""
+What one detector run did. Running it again on the same data reports everything as unchanged.
+"""
+type DetectionResult {
+  opened: Int!
+  resolved: Int!
+
+  """
+  Findings that already had a live incident, plus live incidents still backed by a finding.
+  """
+  unchanged: Int!
+}
+
 enum DeviceClass {
   DESKTOP
   MOBILE
   TABLET
   UNKNOWN
+}
+
+"""
+Something the detector decided a human should look at: a vitals regression or a failing health check.
+"""
+type Incident {
+  """Set when `source` is HEALTH_CHECK."""
+  checkEvidence: CheckEvidence
+  detectedAt: DateTime!
+  id: ID!
+
+  """The regressed metric; null for a health-check incident."""
+  metric: MetricName
+
+  """What the human wrote when approving or dismissing."""
+  note: String
+  resolvedAt: DateTime
+  siteId: ID!
+  source: IncidentSource!
+  status: IncidentStatus!
+
+  """
+  Who did what, oldest first; empty until an agent or a human acts. One statement per incident, so ask for it on the detail view, not the list.
+  """
+  steps: [IncidentStep!]!
+
+  """The path for a vitals regression, the check id for a health check."""
+  subject: String!
+  updatedAt: DateTime!
+
+  """Set when `source` is WEB_VITALS."""
+  vitalsEvidence: VitalsEvidence
+}
+
+"""Which detector opened the incident."""
+enum IncidentSource {
+  HEALTH_CHECK
+  WEB_VITALS
+}
+
+"""
+Where an incident is in its life. Agents walk OPEN through AWAITING_HUMAN; a human APPROVES or DISMISSES; the detector RESOLVES.
+"""
+enum IncidentStatus {
+  APPROVED
+  AWAITING_HUMAN
+  DISMISSED
+  FIX_PROPOSED
+  OPEN
+  RESOLVED
+  REVIEWED
+  TRIAGED
+}
+
+"""
+One entry in an incident's timeline: an agent's work (from M15) or a human decision.
+"""
+type IncidentStep {
+  costUsd: Float
+
+  """The long form: what was seen and concluded, or the human's note."""
+  detail: String
+  finishedAt: DateTime
+  id: ID!
+  inputTokens: Int
+
+  """A URL to follow: the PR, a trace, a commit."""
+  link: String
+  model: String
+  outputTokens: Int
+  role: StepRole!
+  startedAt: DateTime!
+  status: StepStatus!
+
+  """One line a human can read in the timeline."""
+  summary: String!
 }
 
 enum MetricName {
@@ -43,6 +192,23 @@ type MetricSummary {
   sampleCount: Int!
 }
 
+type Mutation {
+  """
+  A human confirms the incident is real and worth fixing. Allowed from any live status; refused once decided or resolved.
+  """
+  approveIncident(id: ID!, note: String): Incident!
+
+  """
+  Run the deterministic detector for one site now. Idempotent: a second run on the same data changes nothing.
+  """
+  detectIncidents(siteId: ID!): DetectionResult!
+
+  """
+  A human closes the incident as noise or not worth acting on. Allowed from any live status; refused once decided or resolved.
+  """
+  dismissIncident(id: ID!, note: String): Incident!
+}
+
 """Traffic for one URL path, aggregated over its pageviews."""
 type Page {
   """Metric events recorded on this path."""
@@ -64,6 +230,10 @@ type Pageview {
 }
 
 type Query {
+  """
+  One incident by id, with its evidence and steps; null when no incident has that id.
+  """
+  incident(id: ID!): Incident
   pages(filter: TrafficFilter, siteId: ID!): [Page!]!
   site(id: ID!): Site
   sites: [Site!]!
@@ -90,8 +260,15 @@ type Session {
 
 """A property being measured."""
 type Site {
+  """
+  Every check the site's applications have reported, at its latest observation, worst status first.
+  """
+  checks: [Check!]!
   createdAt: DateTime!
   id: ID!
+
+  """Newest first, at most 100; pass a status to narrow."""
+  incidents(status: IncidentStatus): [Incident!]!
 
   """Site-wide rollup across every path."""
   metrics(filter: TrafficFilter): [MetricSummary!]!
@@ -104,6 +281,21 @@ type Site {
   sessions(filter: TrafficFilter, limit: Int = 50): [Session!]!
 }
 
+"""Who took a step on an incident: one of the agent roles, or the human."""
+enum StepRole {
+  HUMAN
+  OPEN_PR
+  PROPOSE_FIX
+  REVIEW
+  SUMMARIZE
+}
+
+enum StepStatus {
+  FAILED
+  RUNNING
+  SUCCEEDED
+}
+
 """
 Narrow traffic to a half-open time window [from, to) and/or session dimensions. Every field is optional.
 """
@@ -112,4 +304,30 @@ input TrafficFilter {
   deviceClass: DeviceClass
   from: DateTime
   to: DateTime
+}
+
+"""
+Why a vitals regression was opened: the baseline window against the current one.
+"""
+type VitalsEvidence {
+  baseline: WindowSummary!
+  current: WindowSummary!
+  metric: MetricName!
+  path: String!
+
+  """
+  (current.p75 - baseline.p75) / baseline.p75; 0.5 means half again as slow.
+  """
+  relativeIncrease: Float!
+}
+
+"""
+One aggregation window, half-open [from, to), summarised to the number web.dev rates: the p75.
+"""
+type WindowSummary {
+  from: DateTime!
+  p75: Float!
+  rating: MetricRating!
+  sampleCount: Int!
+  to: DateTime!
 }

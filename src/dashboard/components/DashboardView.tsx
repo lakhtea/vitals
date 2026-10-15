@@ -1,19 +1,29 @@
 "use client";
 
 // The interactive dashboard: owns which site and which filters are chosen and
-// renders the cards and tables. Its first render shows the result the Server
+// renders the cards, incidents, health checks, and tables. Its first render shows the result the Server
 // Component already resolved, so server HTML and hydration are identical and
 // no request is made; only a changed site or filter queries /api/graphql.
 import { useQuery } from "@apollo/client/react";
 import { useId, useState, type ReactElement } from "react";
 import type { DashboardQuery } from "@/graphql/generated/graphql";
 import { METRIC_NAMES } from "@/vitals/metrics";
-import { toMetricName, toMetricRating } from "../adapters";
+import {
+  toCheckStatus,
+  toIncidentEvidence,
+  toIncidentSource,
+  toIncidentStatus,
+  toMetricName,
+  toMetricRating,
+} from "../adapters";
 import { DEFAULT_FILTERS, isDefaultFilters, toTrafficFilter, type DashboardFilters } from "../filters";
+import { describeEvidence, incidentTitle } from "../incidents";
 import { DASHBOARD } from "../queries";
 import { DashboardHeader } from "./DashboardHeader";
 import styles from "./DashboardView.module.css";
 import { FilterBar } from "./FilterBar";
+import { HealthPanel, type HealthCheckData } from "./HealthPanel";
+import { IncidentsTable, type IncidentRowData } from "./IncidentsTable";
 import { MetricCard } from "./MetricCard";
 import { PagesTable } from "./PagesTable";
 import { SessionsTable } from "./SessionsTable";
@@ -101,6 +111,35 @@ export const DashboardView = ({ sites, initialSite, asOf }: DashboardViewProps):
     })),
   }));
 
+  // Incidents and checks are site state, not traffic: the filters do not narrow them.
+  const incidents = (site?.incidents ?? []).map((incident): IncidentRowData => {
+    const source = toIncidentSource(incident.source);
+    const metric = incident.metric === null ? null : toMetricName(incident.metric);
+    const evidence = toIncidentEvidence(incident);
+    return {
+      id: incident.id,
+      source,
+      subject: incident.subject,
+      metric,
+      status: toIncidentStatus(incident.status),
+      detectedAt: incident.detectedAt,
+      title: incidentTitle({ source, subject: incident.subject, metric, evidence }),
+      headline: describeEvidence(evidence),
+    };
+  });
+
+  const checks = (site?.checks ?? []).map(
+    (check): HealthCheckData => ({
+      checkId: check.checkId,
+      name: check.name,
+      status: toCheckStatus(check.status),
+      value: check.value,
+      unit: check.unit,
+      observedAt: check.observedAt,
+      detail: check.detail,
+    }),
+  );
+
   return (
     <main className={styles.page}>
       <DashboardHeader>
@@ -135,6 +174,13 @@ export const DashboardView = ({ sites, initialSite, asOf }: DashboardViewProps):
               <MetricCard key={card.name} {...card} />
             ))}
           </section>
+
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Incidents</h2>
+            <IncidentsTable incidents={incidents} />
+          </section>
+
+          <HealthPanel checks={checks} />
 
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}>Pages</h2>

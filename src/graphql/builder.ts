@@ -20,3 +20,6 @@ export const builder = new SchemaBuilder<{
 });
 
 builder.queryType({});
+// Mutations arrive with M12 (the human decisions and the detector trigger);
+// the root is declared here so schema.ts can add fields to it like it does for Query.
+builder.mutationType({});

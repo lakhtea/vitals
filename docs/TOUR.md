@@ -4,8 +4,8 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M9 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
-Plan amended 2026-10-14: M12 to M15 add incidents, health checks, the MCP boundary, an in-dashboard editor for the agent's proposed fix, and the triage worker; none of that exists in code yet, see PLAN.md.
+Current state: **M9 and M12 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
+Plan amended 2026-10-14: M12 to M15 add incidents, health checks, the MCP boundary, an in-dashboard editor for the agent's proposed fix, and the triage worker; M12 is built, M13 to M15 are next, see PLAN.md.
 Data model, migrations, seeds, ingest endpoint, analytics API, schema snapshot, typed documents, dashboard UI with Storybook, server-rendered first paint, bundle budget, virtualised sessions table, axe and keyboard e2e, and demo mode are in place.
 
 ## The one-paragraph version
@@ -13,6 +13,7 @@ Data model, migrations, seeds, ingest endpoint, analytics API, schema snapshot, 
 Vitals is a self-hostable real-user-monitoring kit.
 A small browser library (coming in M3, Lakhte-built) captures Core Web Vitals and posts them to `/api/collect` (M2).
 A Next.js app stores them in SQLite through Drizzle, exposes them through a Pothos-built GraphQL schema served by Yoga at `/api/graphql`, and renders a dashboard with Apollo Client.
+Since M12 any application can also push health checks to `/api/checks`; a deterministic detector turns vitals regressions and failing checks into incidents, and a person approves or dismisses them on the incident page, the human gate the triage agents (M15) will stop at.
 
 ## Directory map
 
@@ -22,6 +23,8 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   ├── app/                  Next.js App Router
 │   │   ├── api/graphql/      GraphQL endpoint (Yoga)
 │   │   ├── api/collect/      ingest endpoint (two-line glue over src/collect)
+│   │   ├── api/checks/       health-check endpoint, write-key protected (glue over src/checks)
+│   │   ├── incidents/[id]/   the incident page: Server Component resolves one incident, IncidentView hydrates the decision form
 │   │   ├── layout.tsx        HTML shell, wraps pages in ApolloWrapper
 │   │   ├── apollo/           Apollo <-> Next.js integration: browser wrapper, RSC client (SchemaLink)
 │   │   ├── DemoBanner.tsx    one-line banner, rendered only when VITALS_DEMO_MODE=1
@@ -30,25 +33,27 @@ A Next.js app stores them in SQLite through Drizzle, exposes them through a Poth
 │   │   ├── builder.ts        the Pothos builder (plugins, scalar types)
 │   │   ├── scalars.ts        DateTime
 │   │   ├── enums.ts          MetricName, MetricRating, DeviceClass, ConnectionType
-│   │   ├── types/            MetricSummary, Session + Pageview (loadableList relation)
+│   │   ├── types/            MetricSummary, Session + Pageview (loadableList relation), Check, Incident + evidence + steps
 │   │   ├── loaders/          batch functions DataLoader calls (Page.metrics)
-│   │   ├── schema.ts         Page, Site, root queries, toSchema()
+│   │   ├── schema.ts         Page, Site, root queries, the decision and detection mutations, toSchema()
 │   │   ├── generated/        GraphQL Codegen output: graphql() + TypedDocumentNodes (committed, never edited)
 │   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler, demo rate limiter + tests
+│   ├── checks/               health checks: status vocabulary, zod payload, persistence, write-key HTTP handler + tests
+│   ├── incidents/            vocabulary (statuses, transitions, roles), evidence shapes, the pure detector, detectIncidents + tests
 │   ├── config/               demo-mode flag
-│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels, adapters, dates
+│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels, adapters, dates, incidents (labels + evidence text)
 │   │   └── components/DashboardView.tsx   "use client": site + filter state, useQuery on change only
 │   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions, formatting
 │   └── db/
-│       ├── schema.ts         the four tables (sites, sessions, pageviews, metric_events)
+│       ├── schema.ts         seven tables: sites, sessions, pageviews, metric_events + checks, incidents, incident_steps
 │       ├── index.ts          open SQLite, run migrations, makeDb / getDb
-│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions
+│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions, checks, incidents
 │       ├── query-counter.ts  counts statements; behind every README query number
-│       ├── synthetic/        deterministic fake-traffic generator
+│       ├── synthetic/        deterministic fake-traffic generator, the /pricing regression fixture, the health-check fixture
 │       └── seed.ts           idempotent demo seed + stress seed (CLI: scripts/seed-db.ts)
 ├── drizzle/                  generated migrations + snapshots (npm run db:generate)
-├── scripts/                  seed-db.ts, measure-query-count.ts, print-schema.ts, check-bundle-budget.ts, measure-render.ts
+├── scripts/                  seed-db.ts, detect-incidents.ts, measure-query-count.ts, print-schema.ts, check-bundle-budget.ts, measure-render.ts
 ├── bundle-budget.json        committed First Load JS baseline for "/" (CI fails above +10%)
 ├── .storybook/               Storybook 10: nextjs-vite framework, a11y + vitest addons
 ├── schema.graphql            the schema snapshot; a test and CI fail if it drifts from src/graphql
@@ -83,6 +88,15 @@ Chapter 07 explains RSC, hydration, and why the page awaits data instead of stre
 Browser `sendBeacon` -> `POST /api/collect` -> `route.ts` -> `collect/handle.ts` (size, JSON, zod, site) -> `collect/ingest.ts` (one transaction, conflict-ignoring inserts) -> `202 { inserted, duplicates }`.
 Chapter 02 explains each step and the error codes.
 
+## Follow a detection
+
+`npm run incidents:detect` -> `scripts/detect-incidents.ts` -> `incidents/detect.ts` loads two 24-hour windows of per-path p75s (one window-function statement each) and the check history -> `incidents/detector.ts` (pure: sample floor, relative increase, rating band, failing or degraded streak) returns findings -> one transaction opens an `incidents` row per new finding and resolves open ones whose finding is gone -> the overview lists them, `/incidents/[id]` shows the evidence, and a person's approve or dismiss becomes an `incident_steps` row.
+Chapter 12 explains the rules and the state machine.
+
+## Follow a health check
+
+An application -> `POST /api/checks` with `Authorization: Bearer <write key>` -> `route.ts` -> `checks/handle.ts` (size, JSON, zod, site, key) -> `checks/ingest.ts` (conflict-ignoring insert on site + check id + observed time) -> `202 { inserted, duplicates }` -> the newest row per check is the health panel, the history is what the detector reads.
+
 ## Follow a batched field
 
 `site { pages { metrics } }`: the `pages` resolver returns 10 pages -> graphql-js calls `Page.metrics` ten times in the same tick -> each call hands DataLoader a `(site, path, range)` key -> after the tick, DataLoader calls `batchLoadPageMetrics` once with all ten -> one window-function statement -> results handed back in key order.
@@ -95,6 +109,7 @@ A **site** has **sessions** (one visit: device, connection, browser).
 A session has **pageviews** (one navigation: path, time).
 A pageview has **metric events** (one LCP, CLS, INP, TTFB, or FCP value with its rating).
 Ids for sessions and pageviews come from the browser so retried deliveries dedupe; metric events dedupe on (pageview, name, metric id).
+A site also has **checks** (one row per health observation, deduped on check id and time) and **incidents** (one live incident per path-and-metric or check, with JSON evidence), each with **incident steps** (agent work and human decisions, in order).
 All timestamps are epoch milliseconds.
 
 ## Where the tests are
@@ -103,7 +118,7 @@ All timestamps are epoch milliseconds.
 | ----- | -------- | ------------ | ------- |
 | Unit | `src/**/*.test.ts` | schema executed in-process, `:memory:` SQLite | `npm run test` |
 | Stories | `src/**/*.stories.tsx` | each story in headless Chromium: render, play function, axe | `npm run test:storybook` |
-| E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path) | real dev server + Chromium, `.data/e2e.db` | `npm run test:e2e` |
+| E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path, incidents: list, keyboard dismiss, axe) | real dev server + Chromium, `.data/e2e.db`, seeded and detected | `npm run test:e2e` |
 
 CI runs all three plus `typecheck`, `lint`, `codegen:check`, and the bundle budget.
 The rule for what deserves a test is in TESTING_RULES.md.
@@ -119,6 +134,7 @@ The rule for what deserves a test is in TESTING_RULES.md.
 ```bash
 npm install
 npm run db:seed          # or npm run db:seed:stress for ~100k events
+npm run incidents:detect # open incidents for the seeded regression and the failing check
 npm run dev              # http://localhost:3000, GraphiQL at /api/graphql
 npm run storybook        # http://localhost:6006
 npm run check:bundle     # after npm run build: First Load JS vs the committed baseline
@@ -137,6 +153,7 @@ npm run check:bundle     # after npm run build: First Load JS vs the committed b
 - [08 - Performance on itself](learning/08-performance-on-itself.md): stress seed, virtualisation, bundle budget, all measured; the self-measurement loop.
 - [09 - Accessibility](learning/09-accessibility.md): what axe catches and cannot, the keyboard path, chart fallbacks.
 - [10 - Deploy and demo mode](learning/10-deploy-and-demo-mode.md): the hosting decision, what demo mode isolates, what real hosting would change.
+- [12 - Incidents and health checks](learning/12-incidents-and-health-checks.md): detection as statistics, the incident state machine, push-first checks and the write key, the first detail route.
 - [99 - Use this repo as a template](learning/99-use-as-template.md): keep/replace lists and the order to replace things in (draft, refreshed at M11).
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
