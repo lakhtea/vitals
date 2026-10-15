@@ -1,10 +1,12 @@
 // CLI entry for `npm run incidents:detect`: opens the configured database
 // (honouring VITALS_DB_PATH) and runs incident detection for every site, or
 // for one with `-- --site <id>`. Prints one line of counts; re-running is safe
-// because detection reconciles rather than appends.
+// because detection reconciles rather than appends. Then attaches the demo's
+// seeded proposed fix, which needs the incident detection just opened.
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sites } from "@/db/schema";
+import { attachSeededFix } from "@/db/seed";
 import { detectIncidents, detectIncidentsForAllSites } from "@/incidents/detect";
 
 const readSiteArgument = (argv: readonly string[]): string | null => {
@@ -30,3 +32,6 @@ if (siteId !== null && db.select({ id: sites.id }).from(sites).where(eq(sites.id
 
 const result = siteId === null ? detectIncidentsForAllSites({ db }) : detectIncidents({ db, siteId });
 console.log(`detect: opened ${result.opened}, resolved ${result.resolved}, unchanged ${result.unchanged}`);
+if (attachSeededFix({ db })) {
+  console.log("detect: attached the seeded proposed fix to the demo /pricing LCP incident");
+}

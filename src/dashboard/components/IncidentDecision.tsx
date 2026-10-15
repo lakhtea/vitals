@@ -14,9 +14,11 @@ import { IncidentActions } from "./IncidentActions";
 export interface IncidentDecisionProps {
   incidentId: string;
   status: IncidentStatus;
+  /** The latest proposed revision; approving pins exactly this one. Null when nothing was proposed. */
+  revisionId: string | null;
 }
 
-export const IncidentDecision = ({ incidentId, status }: IncidentDecisionProps): ReactElement => {
+export const IncidentDecision = ({ incidentId, status, revisionId }: IncidentDecisionProps): ReactElement => {
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
   const [approve, approveState] = useMutation(APPROVE_INCIDENT);
@@ -27,9 +29,12 @@ export const IncidentDecision = ({ incidentId, status }: IncidentDecisionProps):
 
   const decide = async (decision: HumanDecision, note: string): Promise<void> => {
     const variables = { id: incidentId, note: note === "" ? null : note };
-    const mutate = decision === "approved" ? approve : dismiss;
     try {
-      await mutate({ variables });
+      if (decision === "approved") {
+        await approve({ variables: { ...variables, revisionId } });
+      } else {
+        await dismiss({ variables });
+      }
     } catch {
       // Apollo rejects on a GraphQL error and also records it on the hook; `error` above renders it.
       return;

@@ -1,9 +1,12 @@
-// Measures the dashboard route's First Load JS from the artefacts `next build`
-// leaves in .next/ and fails when it exceeds the committed baseline plus the
+// Measures each budgeted route's First Load JS from the artefacts `next build`
+// leaves in .next/ and fails when any exceeds its committed baseline plus the
 // tolerance in bundle-budget.json. This is the committed method behind the
-// README's "First-load JS" row and the CI job `bundle`.
-//   npm run build && npm run check:bundle    compare against the baseline
-//   npm run build && npm run measure:bundle  re-measure and rewrite the baseline
+// README's "First-load JS" rows and the CI job `bundle`.
+//   npm run build && npm run check:bundle                              compare every route
+//   npm run build && npm run measure:bundle -- --route "/incidents/[id]"  re-measure one route
+//   npm run build && npm run measure:bundle                            re-measure every route
+// A baseline is rewritten only for the routes measured, so recording a new
+// route never quietly resets another route's older baseline.
 //
 // What is summed (the same union Next.js itself uses for its route-bundle
 // diagnostics, which the script cross-checks against when present):
@@ -30,13 +33,15 @@ const DEFAULT_TOLERANCE_PERCENT = 10;
 const PERCENT = 100;
 
 const BudgetSchema = z.object({
-  route: z.string(),
-  firstLoadJsBytes: z.number().int().nonnegative(),
   tolerancePercent: z.number().nonnegative(),
   measuredWith: z.string(),
+  /** Route -> First Load JS baseline in raw bytes. */
+  routes: z.record(z.string(), z.number().int().nonnegative()),
 });
 
 type Budget = z.infer<typeof BudgetSchema>;
+
+const DEFAULT_ROUTE = "/";
 
 const BuildManifestSchema = z.object({ rootMainFiles: z.array(z.string()) });
 
@@ -147,55 +152,88 @@ const printMeasurement = (measurement: Measurement): void => {
   console.log(`  ${formatBytes(measurement.totalBytes).padStart(12)}  total across ${measurement.chunks.length} chunks`);
 };
 
-const writeBaseline = (measurement: Measurement, existing: Budget | null): void => {
+const writeBaselines = (measurements: Measurement[], existing: Budget | null): void => {
   const budget: Budget = {
-    route: measurement.route,
-    firstLoadJsBytes: measurement.totalBytes,
     tolerancePercent: existing?.tolerancePercent ?? DEFAULT_TOLERANCE_PERCENT,
     measuredWith: MEASURED_WITH,
+    routes: {
+      ...existing?.routes,
+      ...Object.fromEntries(measurements.map((measurement) => [measurement.route, measurement.totalBytes])),
+    },
   };
   writeFileSync(BUDGET_FILE, `${JSON.stringify(budget, null, 2)}\n`);
-  console.log(`\nBaseline written to ${path.relative(process.cwd(), BUDGET_FILE)}: ${formatBytes(budget.firstLoadJsBytes)}`);
+  for (const measurement of measurements) {
+    console.log(`\nBaseline for ${measurement.route} written to ${path.relative(process.cwd(), BUDGET_FILE)}: ${formatBytes(measurement.totalBytes)}`);
+  }
 };
 
-const compareToBaseline = (measurement: Measurement, budget: Budget): void => {
-  const limit = Math.floor(budget.firstLoadJsBytes * (1 + budget.tolerancePercent / PERCENT));
-  const delta = measurement.totalBytes - budget.firstLoadJsBytes;
-  const deltaPercent = (delta / budget.firstLoadJsBytes) * PERCENT;
+/** Returns the failure message, or null when the route is within budget. */
+const compareToBaseline = ({ measurement, baseline, budget }: { measurement: Measurement; baseline: number; budget: Budget }): string | null => {
+  const limit = Math.floor(baseline * (1 + budget.tolerancePercent / PERCENT));
+  const delta = measurement.totalBytes - baseline;
+  const deltaPercent = (delta / baseline) * PERCENT;
   const sign = delta >= 0 ? "+" : "-";
-  console.log(`\nBudget for ${budget.route}:`);
+  console.log(`\nBudget for ${measurement.route}:`);
   console.log(`  current  ${formatBytes(measurement.totalBytes).padStart(12)}`);
-  console.log(`  baseline ${formatBytes(budget.firstLoadJsBytes).padStart(12)}  (${budget.measuredWith})`);
+  console.log(`  baseline ${formatBytes(baseline).padStart(12)}  (${budget.measuredWith})`);
   console.log(`  delta    ${`${sign}${formatBytes(Math.abs(delta))}`.padStart(12)}  (${sign}${Math.abs(deltaPercent).toFixed(2)}%)`);
   console.log(`  limit    ${formatBytes(limit).padStart(12)}  (baseline + ${budget.tolerancePercent}%)`);
 
   if (measurement.totalBytes > limit) {
-    throw new Error(
-      `First Load JS for ${budget.route} is ${formatBytes(measurement.totalBytes)}, over the budget of ${formatBytes(limit)}. ` +
-        "Find the cause in the chunk list above (a new client dependency, or a module that moved into a client bundle). " +
-        `If the growth is intended, re-measure with \`${MEASURED_WITH}\` and commit the new baseline with the reason.`,
+    return (
+      `First Load JS for ${measurement.route} is ${formatBytes(measurement.totalBytes)}, over the budget of ${formatBytes(limit)}. ` +
+      "Find the cause in the chunk list above (a new client dependency, or a module that moved into a client bundle). " +
+      `If the growth is intended, re-measure that route with \`${MEASURED_WITH} -- --route "${measurement.route}"\` and commit the new baseline with the reason.`
     );
   }
   console.log("  within budget");
+  return null;
+};
+
+const measure = (route: string): Measurement => {
+  const measurement = measureFirstLoadJs(route);
+  assertMatchesNextDiagnostics(measurement);
+  printMeasurement(measurement);
+  return measurement;
+};
+
+const requestedRoute = (): string | null => {
+  const index = process.argv.indexOf("--route");
+  if (index === -1) {
+    return null;
+  }
+  const route = process.argv[index + 1];
+  if (route === undefined || !route.startsWith("/")) {
+    throw new Error('--route needs a route such as "/" or "/incidents/[id]"');
+  }
+  return route;
 };
 
 const main = (): void => {
   const shouldWrite = process.argv.includes("--write");
   const existing = readBudgetIfPresent();
-  const route = existing?.route ?? "/";
-
-  const measurement = measureFirstLoadJs(route);
-  assertMatchesNextDiagnostics(measurement);
-  printMeasurement(measurement);
+  const onlyRoute = requestedRoute();
 
   if (shouldWrite) {
-    writeBaseline(measurement, existing);
+    const routes = onlyRoute !== null ? [onlyRoute] : Object.keys(existing?.routes ?? { [DEFAULT_ROUTE]: 0 });
+    writeBaselines(routes.map(measure), existing);
     return;
   }
   if (existing === null) {
     throw new Error(`${path.relative(process.cwd(), BUDGET_FILE)} is missing; create it with \`${MEASURED_WITH}\``);
   }
-  compareToBaseline(measurement, existing);
+  const routes = onlyRoute !== null ? [onlyRoute] : Object.keys(existing.routes);
+  const failures = routes.flatMap((route) => {
+    const baseline = existing.routes[route];
+    if (baseline === undefined) {
+      return [`${route} has no baseline in ${path.relative(process.cwd(), BUDGET_FILE)}`];
+    }
+    const failure = compareToBaseline({ measurement: measure(route), baseline, budget: existing });
+    return failure === null ? [] : [failure];
+  });
+  if (failures.length > 0) {
+    throw new Error(failures.join("\n"));
+  }
 };
 
 try {

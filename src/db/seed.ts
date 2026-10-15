@@ -4,12 +4,16 @@
 // detector is meant to find (one LCP regression, one failing check); the
 // stress plan stays detector-clean. `npm run db:seed` runs seed(); `npm run
 // db:seed:stress` runs seedStress(), the ~100k-event benchmark data set that
-// lives beside it. The CLI entry is scripts/seed-db.ts.
-import { count, eq, sql } from "drizzle-orm";
+// lives beside it. attachSeededFix() adds the demo's proposed fix once
+// detection has opened its incident. The CLI entry is scripts/seed-db.ts.
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { DETECTION_RULES } from "@/incidents/detector";
+import { ACTIVE_INCIDENT_STATUSES } from "@/incidents/vocabulary";
 import type { Db } from "./index";
-import { checks, metricEvents, pageviews, sessions, sites } from "./schema";
+import { getLatestFixRevision, submitFixRevision } from "./queries/fix-revisions";
+import { checks, incidents, metricEvents, pageviews, sessions, sites } from "./schema";
 import { generateCheckObservations } from "./synthetic/checks";
+import { SEEDED_FIX, SEEDED_FIX_FILES } from "./synthetic/proposed-fix";
 import { generateVitalsRegression } from "./synthetic/regression";
 import { generateSyntheticTraffic, type SyntheticTraffic, type TrafficProfileName } from "./synthetic/traffic";
 
@@ -194,3 +198,51 @@ export const seed = (db: Db, now: number = Date.now()): void => runSeed({ db, no
 
 /** The M8 benchmark data set: ~2,000 sessions and ~100k metric events over 30 days, under `stress-` ids. */
 export const seedStress = (db: Db, now: number = Date.now()): void => runSeed({ db, now, plan: STRESS_PLAN });
+
+/** The planted regression's incident: the one the seeded proposed fix belongs to. */
+const SEEDED_FIX_INCIDENT = { source: "web-vitals", subject: "/pricing", metric: "LCP" } as const;
+
+/**
+ * Gives the demo's /pricing LCP incident its agent-authored revision 1 (the
+ * timeout fix for src/demo/slow-upstream.ts), so the review editor has a real
+ * change to show before the M15 agent writes revisions. It cannot live in
+ * seed(): seeding runs before detection, and the incident does not exist until
+ * the detector opens it. So the two callers that run detection on the demo
+ * data (scripts/detect-incidents.ts and the demo-mode cold start in
+ * src/db/index.ts) call this right after; the detector itself stays free of
+ * demo knowledge. Idempotent: does nothing when the incident is missing, no
+ * longer takes fixes, or already has a revision. Returns whether it wrote one.
+ */
+export const attachSeededFix = ({ db, now = Date.now() }: { db: Db; now?: number }): boolean => {
+  const incident = db
+    .select({ id: incidents.id })
+    .from(incidents)
+    .where(
+      and(
+        eq(incidents.siteId, DEMO_SITE.id),
+        eq(incidents.source, SEEDED_FIX_INCIDENT.source),
+        eq(incidents.subject, SEEDED_FIX_INCIDENT.subject),
+        eq(incidents.metric, SEEDED_FIX_INCIDENT.metric),
+        inArray(
+          incidents.status,
+          ACTIVE_INCIDENT_STATUSES.filter((status) => status !== "approved"),
+        ),
+      ),
+    )
+    .get();
+  if (incident === undefined || getLatestFixRevision({ db, incidentId: incident.id }) !== undefined) {
+    return false;
+  }
+  const result = submitFixRevision({
+    db,
+    input: {
+      incidentId: incident.id,
+      targetRepo: SEEDED_FIX.targetRepo,
+      baseSha: SEEDED_FIX.baseSha,
+      summary: SEEDED_FIX.summary,
+      files: SEEDED_FIX_FILES,
+    },
+    now,
+  });
+  return result.ok;
+};

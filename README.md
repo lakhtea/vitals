@@ -289,6 +289,22 @@ Choice: HTTP to `/api/graphql` with `Authorization: Bearer <VITALS_SERVICE_TOKEN
 Approve and dismiss stay open, as everything else does in this single-tenant tool.
 Tradeoff: anyone who can reach the dashboard can decide an incident, which is acceptable for a self-hosted tool on a private network and is the first thing multi-tenant auth would change; agents, which run unattended and spend money, are the ones that must prove who they are.
 
+### A proposed change is a base commit plus file contents, never a hand-edited patch
+Written before M14 was built.
+The person at the gate edits what the agent proposed, and the worker (M15) must turn the approved version into a pull request.
+Options: store a unified diff and let people edit the diff text; store a base commit SHA plus each file's before and after contents, and derive the diff.
+Choice: `fix_revisions` holds the base SHA, the target repository, and a summary; `fix_revision_files` holds each file's path, action, and full before and after text; the diff shown on the page is computed on the server.
+A diff is a view, not a source of truth: a person changing `5_000` to `10_000` edits a file, not hunk headers and line counts, and the worker applies whole files at a known base, which cannot half-apply.
+Every edit writes a new revision, so the record shows exactly what the agent proposed and exactly what the person changed.
+Tradeoff: storing whole files costs more space than patches; caps of 20 files and 200 KB per file keep a revision a small change, which is what an on-call fix should be.
+
+### CodeMirror 6, loaded only when someone clicks Edit
+The editor is for small changes to an agent's proposal, not a replacement for a real editor.
+Options: Monaco (the VS Code editor: excellent, and several megabytes); CodeMirror 6 (modular, so only the pieces used ship, with an accessible contenteditable surface and documented keyboard behaviour); a plain textarea (no line numbers, no highlighting, easy to break indentation in).
+Choice: CodeMirror 6 with line numbers, history, and syntax highlighting for TypeScript, JavaScript, CSS, JSON, and Markdown; no tab capture, so a keyboard user can always leave it.
+It is loaded with `next/dynamic` on the incident page and fetched only when a person clicks Edit, so the overview's bundle never sees it and the incident route gets its own budget.
+Tradeoff: two bundle baselines to maintain instead of one, and a short load on the first Edit click.
+
 ## Server/client boundary
 
 The overview is a Server Component tree with `"use client"` only at the
@@ -329,7 +345,8 @@ would make React throw the server HTML away.
 | `site { pages { metrics } }` SQL statements, N = 10 seeded pages ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | 12 = 2 + N (naive) | 3 (DataLoader) |
 | `site { sessions(limit: 20) { pageviews } }` SQL statements ([method](./scripts/measure-query-count.ts), [pinned by test](./src/graphql/metrics.test.ts)) | not measured (built batched from the start) | 3 (DataLoader) |
 | Sessions table with 2,000 rows: `<tr>` in the DOM / median time to first row, 5 runs ([method](./scripts/measure-render.ts), `npm run build-storybook && npm run measure:render`) | 2,001 / 155 ms | 26 / 91 ms (windowed) |
-| First Load JS for `/`, raw bytes, JS only ([method](./scripts/check-bundle-budget.ts), `npm run build && npm run check:bundle`) | 689,831 B (about 200 KB gzip), the M8 baseline | 728,715 B after M12 added the incidents table and health panel (+5.6%); CI fails above +10% ([baseline](./bundle-budget.json)) |
+| First Load JS for `/`, raw bytes, JS only ([method](./scripts/check-bundle-budget.ts), `npm run build && npm run check:bundle`) | 689,831 B (about 200 KB gzip), the M8 baseline | 728,715 B after M12 (incidents table, health panel); 736,876 B after M14 (+6.8%; the incident page's GraphQL documents ride in the shared document map); CI fails above +10% ([baseline](./bundle-budget.json)) |
+| First Load JS for `/incidents/[id]` ([method](./scripts/check-bundle-budget.ts)) | 707,920 B at M13, before the editor | 730,404 B after M14 (+3.2%); CodeMirror is a separate 542 KB chunk loaded on the first Edit click |
 | Stress seed: 2,000 sessions / 21,265 pageviews / 100,136 events (`npm run db:seed:stress`) | n/a | 0.8 s to insert, idempotent on rerun |
 | Incidents opened by `npm run db:seed && npm run incidents:detect` on a fresh database ([pinned by test](./src/incidents/detect.test.ts)) | n/a | 2 (the planted `/pricing` LCP regression, p75 2,861 ms to 7,153 ms, and the failing `api-health` check); a rerun opens 0 |
 | This dashboard's own p75 LCP / CLS / INP | n/a | TBD (needs the M3 library) |
@@ -442,7 +459,7 @@ Two tiers, amended 2026-10-14.
 
 **Tier one, the RUM kit (built, M1 to M10):** Core Web Vitals (LCP, CLS, INP, TTFB, FCP) by page, device class, and connection; a session view; percentile aggregates (p75 first, per web.dev thresholds).
 **Built in M12 and M13:** health checks any application can push (or `npm run checks:probe` can collect), deterministic incident detection, a human approve/dismiss gate on each incident's page, and an MCP server that lets agents read incidents and record their steps.
-**Planned for M14:** a review surface where an agent's proposed change is shown as a diff and can be edited in place before approval.
+**Built in M14:** a review surface where an agent's proposed change is shown as a diff and a person can edit it in place (each edit a new revision) before approving the exact revision that ships.
 
 **Tier two, the triage agents (planned, M15):** four single-responsibility agents (summarize, propose a fix, review, open the PR) running as a separate worker container that reads incidents over MCP and writes each step back as evidence.
 The dashboard never calls a model, and no agent action leaves the repo before a human approves.

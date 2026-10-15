@@ -11,13 +11,17 @@ import type {
   IncidentStatus as GqlIncidentStatus,
   MetricName as GqlMetricName,
   MetricRating as GqlMetricRating,
+  FileAction as GqlFileAction,
+  FixAuthor as GqlFixAuthor,
   StepRole as GqlStepRole,
   StepStatus as GqlStepStatus,
 } from "@/graphql/generated/graphql";
 import type { IncidentEvidence, WindowSummary } from "@/incidents/evidence";
 import type { IncidentSource, IncidentStatus, StepRole, StepStatus } from "@/incidents/vocabulary";
 import type { MetricName, MetricRating } from "@/vitals/metrics";
+import type { FixRevisionData, FixRevisionSummary } from "./components/FixReview";
 import type { IncidentDetailData } from "./components/IncidentDetail";
+import type { FileActionName, FixAuthorName } from "./fix-review";
 
 const RATING_FROM_GRAPHQL: Record<GqlMetricRating, MetricRating> = {
   GOOD: "good",
@@ -68,6 +72,10 @@ const STEP_STATUS_FROM_GRAPHQL: Record<GqlStepStatus, StepStatus> = {
   SUCCEEDED: "succeeded",
   FAILED: "failed",
 };
+
+const FIX_AUTHOR_FROM_GRAPHQL: Record<GqlFixAuthor, FixAuthorName> = { AGENT: "agent", HUMAN: "human" };
+
+const FILE_ACTION_FROM_GRAPHQL: Record<GqlFileAction, FileActionName> = { ADD: "add", MODIFY: "modify", DELETE: "delete" };
 
 export const toMetricRating = (rating: GqlMetricRating): MetricRating => RATING_FROM_GRAPHQL[rating];
 
@@ -150,3 +158,30 @@ export const toIncidentDetail = (incident: IncidentDetailFragment): IncidentDeta
     link: step.link,
   })),
 });
+
+type WireRevision = NonNullable<IncidentDetailFragment["latestFixRevision"]>;
+
+export const toFixRevisionData = (revision: WireRevision): FixRevisionData => ({
+  id: revision.id,
+  number: revision.number,
+  author: FIX_AUTHOR_FROM_GRAPHQL[revision.author],
+  createdAt: revision.createdAt,
+  summary: revision.summary,
+  targetRepo: revision.targetRepo,
+  baseSha: revision.baseSha,
+  reviewed: revision.reviewed,
+  files: revision.files.map((file) => ({
+    path: file.path,
+    action: FILE_ACTION_FROM_GRAPHQL[file.action],
+    diff: file.diff,
+    afterContent: file.afterContent,
+  })),
+});
+
+export const toFixHistory = (revisions: IncidentDetailFragment["fixRevisions"]): FixRevisionSummary[] =>
+  revisions.map((revision) => ({
+    number: revision.number,
+    author: FIX_AUTHOR_FROM_GRAPHQL[revision.author],
+    createdAt: revision.createdAt,
+    summary: revision.summary,
+  }));

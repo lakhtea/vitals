@@ -1,6 +1,8 @@
 {
-  "route": "/",
-  "firstLoadJsBytes": 689831,
   "tolerancePercent": 10,
-  "measuredWith": "npm run build && npm run measure:bundle"
+  "measuredWith": "npm run build && npm run measure:bundle",
+  "routes": {
+    "/": 689831,
+    "/incidents/[id]": 707920
+  }
 }

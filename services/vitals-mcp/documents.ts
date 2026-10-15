@@ -112,6 +112,16 @@ export const MCP_INCIDENT_CONTEXT = graphql(`
         costUsd
         link
       }
+      latestFixRevision {
+        number
+        author
+        summary
+        reviewed
+        files {
+          path
+          action
+        }
+      }
     }
   }
 `);
@@ -173,6 +183,21 @@ export const MCP_TRANSITION_INCIDENT = graphql(`
     transitionIncident(id: $id, to: $to) {
       id
       status
+    }
+  }
+`);
+
+export const MCP_SUBMIT_FIX = graphql(`
+  mutation McpSubmitFix(
+    $incidentId: ID!
+    $targetRepo: String!
+    $baseSha: String!
+    $summary: String!
+    $files: [FixFileInput!]!
+  ) {
+    submitFixRevision(incidentId: $incidentId, targetRepo: $targetRepo, baseSha: $baseSha, summary: $summary, files: $files) {
+      id
+      number
     }
   }
 `);

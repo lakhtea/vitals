@@ -102,10 +102,99 @@ enum DeviceClass {
   UNKNOWN
 }
 
+"""What a fix revision does to one file."""
+enum FileAction {
+  ADD
+  DELETE
+  MODIFY
+}
+
+"""
+Who wrote a fix revision: an agent proposing it, or a person editing it.
+"""
+enum FixAuthor {
+  AGENT
+  HUMAN
+}
+
+"""
+A person's new after-content for one ADD or MODIFY file of the latest revision.
+"""
+input FixFileEdit {
+  afterContent: String!
+  path: String!
+}
+
+"""
+One file of a proposed change. ADD has no beforeContent; DELETE has no afterContent; MODIFY has both, and they differ. The path is relative to the repository root.
+"""
+input FixFileInput {
+  action: FileAction!
+  afterContent: String
+  beforeContent: String
+  path: String!
+}
+
+"""
+One immutable version of the change proposed for an incident. An agent submits revision 1; each human edit writes the next.
+"""
+type FixRevision {
+  author: FixAuthor!
+
+  """The commit the before contents were read at."""
+  baseSha: String!
+  createdAt: DateTime!
+
+  """
+  Every file's unified diff, joined in submission order. One statement per revision.
+  """
+  diff: String!
+
+  """In submission order. One statement per revision."""
+  files: [FixRevisionFile!]!
+  id: ID!
+
+  """1-based per incident."""
+  number: Int!
+
+  """
+  True when a REVIEW step that SUCCEEDED started at or after this revision was created.
+  """
+  reviewed: Boolean!
+  summary: String!
+
+  """"owner/name" of the repository the change applies to."""
+  targetRepo: String!
+}
+
+"""
+One file a revision touches, as whole contents; the diff is derived from them.
+"""
+type FixRevisionFile {
+  action: FileAction!
+
+  """Null for a deleted file."""
+  afterContent: String
+
+  """Null for an added file."""
+  beforeContent: String
+
+  """
+  This file as a unified diff with three lines of context, a/ and b/ headers.
+  """
+  diff: String!
+
+  """Relative to the repository root."""
+  path: String!
+}
+
 """
 Something the detector decided a human should look at: a vitals regression or a failing health check.
 """
 type Incident {
+  """The revision pinned when the incident was approved; null otherwise."""
+  approvedRevision: FixRevision
+
   """
   Per device class and connection type, over the two windows frozen in the evidence; null for health-check incidents. Two statements per incident, so ask for it on the detail view, not the list.
   """
@@ -114,7 +203,17 @@ type Incident {
   """Set when `source` is HEALTH_CHECK."""
   checkEvidence: CheckEvidence
   detectedAt: DateTime!
+
+  """
+  Every revision of the proposed fix, oldest first; empty when none was proposed. One statement per incident.
+  """
+  fixRevisions: [FixRevision!]!
   id: ID!
+
+  """
+  The revision a person reviews and approves; null when no fix was proposed.
+  """
+  latestFixRevision: FixRevision
 
   """The regressed metric; null for a health-check incident."""
   metric: MetricName
@@ -217,9 +316,9 @@ type MetricSummary {
 
 type Mutation {
   """
-  A human confirms the incident is real and worth fixing. Allowed from any live status; refused once decided or resolved.
+  A human confirms the incident is real and worth fixing. Allowed from any live status; refused once decided or resolved. When the incident has a proposed fix, revisionId is required and must be its latest revision, which the approval pins; when it has none, revisionId must be absent.
   """
-  approveIncident(id: ID!, note: String): Incident!
+  approveIncident(id: ID!, note: String, revisionId: ID): Incident!
 
   """
   Run the deterministic detector for one site now. Idempotent: a second run on the same data changes nothing.
@@ -230,6 +329,11 @@ type Mutation {
   A human closes the incident as noise or not worth acting on. Allowed from any live status; refused once decided or resolved.
   """
   dismissIncident(id: ID!, note: String): Incident!
+
+  """
+  A person edits the latest revision's new contents; writes a new HUMAN revision (unchanged files copied) and a HUMAN step "Edited the proposed change (revision N)" with the note as detail. Only ADD and MODIFY files can be edited, only the incident's latest revision, only while the incident is live and not approved. Refused when nothing changed.
+  """
+  editFixRevision(files: [FixFileEdit!]!, note: String, revisionId: ID!): FixRevision!
 
   """
   An agent appends one step to an incident's timeline. Needs the service token. Refused for role HUMAN (people decide through approveIncident and dismissIncident) and for a dismissed or resolved incident.
@@ -254,6 +358,22 @@ type Mutation {
     summary: String!
     usage: StepUsageInput
   ): IncidentStep!
+
+  """
+  An agent proposes a change. Needs the service token. The incident must be live (not dismissed, resolved, or approved).
+  """
+  submitFixRevision(
+    """The commit the before contents were read at."""
+    baseSha: String!
+
+    """1 to 20 files, each content at most 200,000 UTF-8 bytes."""
+    files: [FixFileInput!]!
+    incidentId: ID!
+    summary: String!
+
+    """"owner/name" of the repository."""
+    targetRepo: String!
+  ): FixRevision!
 
   """
   An agent moves an incident one stage along OPEN -> TRIAGED -> FIX_PROPOSED -> REVIEWED -> AWAITING_HUMAN. Needs the service token. Refused for any other target and for skipping a stage.
