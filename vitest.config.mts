@@ -39,6 +39,8 @@ export default defineConfig({
       {
         extends: true,
         plugins: [storybookTest({ configDir: ".storybook" })],
+        // Pre-bundled up front: discovered mid-run, Vite reloads the page and fails whichever stories were loading.
+        optimizeDeps: { include: ["next/link"] },
         test: {
           name: "storybook",
           browser: {

@@ -1,0 +1,105 @@
+.form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.note {
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  resize: vertical;
+}
+
+.hint {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted);
+}
+
+/* The alert is read in the normal colour too, so the message never depends on red. */
+.error {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rating-poor);
+  border-radius: 6px;
+  color: var(--rating-poor);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.primary,
+.secondary {
+  height: 2.25rem;
+  padding: 0 1rem;
+  border: 1px solid var(--foreground);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.secondary {
+  border-color: var(--border);
+  color: inherit;
+  background: var(--surface);
+}
+
+.secondary:hover:enabled {
+  border-color: var(--muted);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.status {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+}
+
+.closed {
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

@@ -42,6 +42,141 @@ export const DASHBOARD = graphql(`
           path
         }
       }
+      checks {
+        checkId
+        name
+        status
+        value
+        unit
+        observedAt
+        detail
+      }
+      incidents {
+        id
+        source
+        subject
+        metric
+        status
+        detectedAt
+        vitalsEvidence {
+          path
+          metric
+          relativeIncrease
+          baseline {
+            from
+            to
+            p75
+            rating
+            sampleCount
+          }
+          current {
+            from
+            to
+            p75
+            rating
+            sampleCount
+          }
+        }
+        checkEvidence {
+          checkId
+          name
+          status
+          previousStatus
+          consecutive
+          value
+          unit
+          observedAt
+          detail
+        }
+      }
+    }
+  }
+`);
+
+/**
+ * Everything the incident detail route shows. One fragment shared by the query
+ * and both decision mutations, so a decision's response carries the same shape
+ * the page rendered from and Apollo updates that one cache entry in place.
+ */
+export const INCIDENT_DETAIL = graphql(`
+  fragment IncidentDetail on Incident {
+    id
+    siteId
+    source
+    subject
+    metric
+    status
+    detectedAt
+    updatedAt
+    resolvedAt
+    note
+    vitalsEvidence {
+      path
+      metric
+      relativeIncrease
+      baseline {
+        from
+        to
+        p75
+        sampleCount
+        rating
+      }
+      current {
+        from
+        to
+        p75
+        sampleCount
+        rating
+      }
+    }
+    checkEvidence {
+      checkId
+      name
+      status
+      previousStatus
+      consecutive
+      value
+      unit
+      observedAt
+      detail
+    }
+    steps {
+      id
+      role
+      status
+      startedAt
+      finishedAt
+      summary
+      detail
+      model
+      inputTokens
+      outputTokens
+      costUsd
+      link
+    }
+  }
+`);
+
+export const INCIDENT = graphql(`
+  query Incident($id: ID!) {
+    incident(id: $id) {
+      ...IncidentDetail
+    }
+  }
+`);
+
+export const APPROVE_INCIDENT = graphql(`
+  mutation ApproveIncident($id: ID!, $note: String) {
+    approveIncident(id: $id, note: $note) {
+      ...IncidentDetail
+    }
+  }
+`);
+
+export const DISMISS_INCIDENT = graphql(`
+  mutation DismissIncident($id: ID!, $note: String) {
+    dismissIncident(id: $id, note: $note) {
+      ...IncidentDetail
     }
   }
 `);

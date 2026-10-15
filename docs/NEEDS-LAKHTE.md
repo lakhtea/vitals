@@ -47,6 +47,21 @@ Steps for you:
 6. **Custom domain** (optional), then paste the live URL at the top of README.md.
 7. **If you ever want persistence** instead of a demo: libSQL/Turso keeps Drizzle and the schema; the driver swap makes every query `await`. Not planned for v1.
 
+## M12 to M15: incidents, the MCP boundary, the fix review editor, and the triage worker (added 2026-10-14)
+
+Nothing in M12 to M14 needs your accounts.
+One thing to know from M12: the seed gives the two demo sites fixed write keys (`demo-write-key`, `vitals-dashboard-write-key`) so the loop works locally without setup.
+They are public in the repo, which is fine for the ephemeral, rate-limited demo; for any instance holding real data, set a real key with `UPDATE sites SET write_key = '<random>' WHERE id = '<site>'`.
+M15 does need your accounts:
+
+- **Anthropic API key** for live runs of the worker (`ant auth login`, or `ANTHROPIC_API_KEY` in the worker's env).
+  CI and the Vercel demo use recorded fixtures and need no key.
+- **GitHub token and a target repo** for the open-pr agent (`GH_TOKEN` with repo scope).
+  Until `github.com/lakhtea/vitals` exists (M11), the PR step writes a branch and a patch locally.
+- **AWS account with ECS** when you want the worker hosted; `docker compose up` runs dashboard plus worker locally without it.
+  The task definition and runbook will live in `services/triage-worker/`.
+- **Persistence** if the worker should run against the hosted demo: the ephemeral demo database forgets incidents on every cold start, so the libSQL/Turso path from the M10 notes becomes necessary at that point.
+
 ## M11: going public
 
 - Create `github.com/lakhtea/vitals` and push.
@@ -54,7 +69,7 @@ Steps for you:
 - Swap `<USER>` in the README badge for `lakhtea`.
 - **Sign off on the README build-story framing** (draft below) before it lands; edit freely, it must sound like you.
 - `npm publish` of `@lakhtea/vitals-client` (or whichever name you choose) from your npm account, after M3.
-- Set the GitHub repo description and topics. Suggested description: "Self-hostable real-user monitoring: a tiny Core Web Vitals browser library plus a GraphQL analytics dashboard (Next.js, Pothos, Yoga, Apollo, Drizzle, SQLite)". Suggested topics: `web-vitals`, `real-user-monitoring`, `rum`, `graphql`, `pothos`, `graphql-yoga`, `apollo-client`, `nextjs`, `react-server-components`, `drizzle-orm`, `sqlite`, `storybook`, `dataloader`, `typescript`, `performance`.
+- Set the GitHub repo description and topics. Suggested description: "Self-hostable real-user monitoring with on-call triage agents: a tiny Core Web Vitals browser library, a GraphQL analytics dashboard (Next.js, Pothos, Yoga, Apollo, Drizzle, SQLite), and four single-responsibility agents behind a human gate". Suggested topics: `web-vitals`, `real-user-monitoring`, `rum`, `graphql`, `pothos`, `graphql-yoga`, `apollo-client`, `nextjs`, `react-server-components`, `drizzle-orm`, `sqlite`, `storybook`, `dataloader`, `typescript`, `performance`, `mcp`, `ai-agents`, `incident-triage`, `on-call`, `claude-agent-sdk`.
 
 ### Draft: README "How this was built" (needs your sign-off)
 
@@ -75,3 +90,6 @@ Steps for you:
 - 2026-10-07: file created during M0 with environment notes, M3, M10, and M11 items.
 - 2026-10-07: M3 brief is ready; the `vitals-dashboard` site is seeded so dogfooding works as soon as the library does.
 - 2026-10-07 (late): M10 decision made and demo-mode code built; the Vercel steps above are concrete. M11 build-story draft added for sign-off; repo description and topics suggested.
+- 2026-10-14: plan amended for the two tiers; M12 to M14 section added with the worker's key, token, ECS, and persistence notes; repo description and topics updated.
+- 2026-10-14 (later): the fix review editor is M14 and the triage worker is M15; section renamed, nothing new needed from you.
+- 2026-10-15: M12 built; note on the public demo write keys added.

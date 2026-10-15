@@ -9,6 +9,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { isDemoMode } from "@/config/demo-mode";
+import { detectIncidentsForAllSites } from "@/incidents/detect";
 import * as schema from "./schema";
 import { seed } from "./seed";
 
@@ -47,16 +48,18 @@ export const makeDb = (url: string = resolveDbPath(), { logger }: MakeDbOptions 
 
 let sharedDb: Db | null = null;
 
-// Importing seed() here is a plain one-way dependency: seed.ts only imports the
-// Db type from this file (erased at compile time), and its CLI entry lives in
-// scripts/seed-db.ts, so there is no runtime import cycle to reason about.
+// Importing seed() and the detector here is a plain one-way dependency: both
+// only import the Db type from this file (erased at compile time), and their
+// CLI entries live in scripts/, so there is no runtime import cycle to reason about.
 export const getDb = (): Db => {
   if (sharedDb === null) {
     sharedDb = makeDb();
     if (isDemoMode()) {
-      // A fresh instance starts with an empty temp dir, so seed on first open.
-      // seed() is idempotent, so a warm instance that re-opens is harmless.
+      // A fresh instance starts with an empty temp dir, so seed on first open
+      // and open the seeded incidents right away. Both steps are idempotent,
+      // so a warm instance that re-opens is harmless.
       seed(sharedDb);
+      detectIncidentsForAllSites({ db: sharedDb });
     }
   }
   return sharedDb;

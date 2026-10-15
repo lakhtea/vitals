@@ -1,26 +1,66 @@
-// Idempotent demo seed: one site plus deterministic synthetic traffic, inserted
+// Idempotent demo seed: two sites plus deterministic synthetic traffic, inserted
 // with ON CONFLICT DO NOTHING so re-running never duplicates rows and real
-// ingested data can coexist with it. `npm run db:seed` runs seed(); `npm run
+// ingested data can coexist with it. The demo plan also plants what the M12
+// detector is meant to find (one LCP regression, one failing check); the
+// stress plan stays detector-clean. `npm run db:seed` runs seed(); `npm run
 // db:seed:stress` runs seedStress(), the ~100k-event benchmark data set that
 // lives beside it. The CLI entry is scripts/seed-db.ts.
+import { count, eq, sql } from "drizzle-orm";
+import { DETECTION_RULES } from "@/incidents/detector";
 import type { Db } from "./index";
-import { metricEvents, pageviews, sessions, sites } from "./schema";
+import { checks, metricEvents, pageviews, sessions, sites } from "./schema";
+import { generateCheckObservations } from "./synthetic/checks";
+import { generateVitalsRegression } from "./synthetic/regression";
 import { generateSyntheticTraffic, type SyntheticTraffic, type TrafficProfileName } from "./synthetic/traffic";
 
 export const DEMO_SITE = { id: "demo", name: "Demo site (synthetic traffic)" } as const;
 /** Where the dashboard reports on itself once the browser library (M3) is wired in. */
 export const DASHBOARD_SITE = { id: "vitals-dashboard", name: "Vitals dashboard (self-measured)" } as const;
 
+/** Fixed write keys for POST /api/checks, so the local loop needs no configuration. Not secrets: the demo is public. */
+export const DEMO_WRITE_KEY = "demo-write-key";
+export const DASHBOARD_WRITE_KEY = "vitals-dashboard-write-key";
+
+interface IncidentFixtureSeeds {
+  regression: number;
+  checks: number;
+}
+
 interface SeedPlan {
   label: string;
   profile: TrafficProfileName;
   sessionCount: number;
   randomSeed: number;
+  /** How long before `now` the generated traffic ends; 0 means the newest session is right now. */
+  trafficEndsBeforeNowMs: number;
+  /** The planted regression and check history the detector finds; null plants nothing. */
+  incidentFixtures: IncidentFixtureSeeds | null;
 }
 
-const DEMO_PLAN: SeedPlan = { label: "seed", profile: "demo", sessionCount: 50, randomSeed: 20261007 };
-/** Its own random stream, so the stress set is not the demo set with a longer tail. */
-const STRESS_PLAN: SeedPlan = { label: "stress seed", profile: "stress", sessionCount: 2_000, randomSeed: 20261008 };
+const DEMO_PLAN: SeedPlan = {
+  label: "seed",
+  profile: "demo",
+  sessionCount: 50,
+  randomSeed: 20261007,
+  trafficEndsBeforeNowMs: 0,
+  incidentFixtures: { regression: 20261014, checks: 20261015 },
+};
+/**
+ * Its own random stream, so the stress set is not the demo set with a longer
+ * tail. It ends two detection windows before `now`, so the detector's baseline
+ * and current windows never hold benchmark traffic: the set exists to measure
+ * query cost, and a stationary random draw of 40 to 200 samples per path would
+ * otherwise trip the p75 rules by chance (a heavy-tailed CLS p75 on 40 samples
+ * moves by tens of percent between two days of identical traffic).
+ */
+const STRESS_PLAN: SeedPlan = {
+  label: "stress seed",
+  profile: "stress",
+  sessionCount: 2_000,
+  randomSeed: 20261008,
+  trafficEndsBeforeNowMs: 2 * DETECTION_RULES.windowMs,
+  incidentFixtures: null,
+};
 
 /**
  * SQLite binds at most 32766 parameters per statement and a metric event binds
@@ -30,19 +70,30 @@ const STRESS_PLAN: SeedPlan = { label: "stress seed", profile: "stress", session
 const INSERT_CHUNK_ROWS = 500;
 const PROGRESS_EVERY_EVENTS = 20_000;
 
-/** Anything that can run an insert: the database, or the transaction handle it opens. */
-type Inserter = Pick<Db, "insert">;
+/** Anything that can run a statement: the database, or the transaction handle it opens. */
+type SeedHandle = Pick<Db, "insert" | "select">;
 
 const chunk = <T>(rows: ReadonlyArray<T>, size: number): T[][] =>
   Array.from({ length: Math.ceil(rows.length / size) }, (_, index) => rows.slice(index * size, (index + 1) * size));
 
-const insertSites = ({ tx, now }: { tx: Inserter; now: number }): void => {
+const mergeTraffic = (parts: ReadonlyArray<SyntheticTraffic>): SyntheticTraffic => ({
+  sessions: parts.flatMap((part) => part.sessions),
+  pageviews: parts.flatMap((part) => part.pageviews),
+  metricEvents: parts.flatMap((part) => part.metricEvents),
+});
+
+/**
+ * Sites are upserted rather than conflict-ignored so a database seeded before
+ * write keys existed gains them on the next run; only the key is touched, so a
+ * renamed site keeps its name.
+ */
+const insertSites = ({ tx, now }: { tx: SeedHandle; now: number }): void => {
   tx.insert(sites)
     .values([
-      { ...DEMO_SITE, createdAt: now },
-      { ...DASHBOARD_SITE, createdAt: now },
+      { ...DEMO_SITE, createdAt: now, writeKey: DEMO_WRITE_KEY },
+      { ...DASHBOARD_SITE, createdAt: now, writeKey: DASHBOARD_WRITE_KEY },
     ])
-    .onConflictDoNothing()
+    .onConflictDoUpdate({ target: sites.id, set: { writeKey: sql`excluded.write_key` } })
     .run();
 };
 
@@ -51,7 +102,7 @@ const insertTraffic = ({
   traffic,
   onEventsInserted,
 }: {
-  tx: Inserter;
+  tx: SeedHandle;
   traffic: SyntheticTraffic;
   onEventsInserted: (insertedSoFar: number) => void;
 }): void => {
@@ -69,24 +120,51 @@ const insertTraffic = ({
   }
 };
 
+/**
+ * Check observations are stamped relative to `now`, so the dedupe index on
+ * (site, check, observed_at) cannot recognise a re-run an hour later. The
+ * fixture is therefore planted only into a site with no check history at all;
+ * once any application has pushed real checks, the seed leaves them alone.
+ */
+const insertCheckFixture = ({ tx, siteId, now, seed }: { tx: SeedHandle; siteId: string; now: number; seed: number }): number => {
+  const existing = tx.select({ n: count() }).from(checks).where(eq(checks.siteId, siteId)).get()?.n ?? 0;
+  if (existing > 0) {
+    return 0;
+  }
+  const observations = generateCheckObservations({ siteId, now, seed });
+  tx.insert(checks).values(observations).run();
+  return observations.length;
+};
+
 const runSeed = ({ db, now, plan }: { db: Db; now: number; plan: SeedPlan }): void => {
   const startedAt = performance.now();
   const elapsedSeconds = (): string => ((performance.now() - startedAt) / 1000).toFixed(1);
   const traffic = generateSyntheticTraffic({
     siteId: DEMO_SITE.id,
     sessionCount: plan.sessionCount,
-    now,
+    now: now - plan.trafficEndsBeforeNowMs,
     seed: plan.randomSeed,
     profile: plan.profile,
   });
-  const totalEvents = traffic.metricEvents.length;
+  const regression =
+    plan.incidentFixtures === null
+      ? null
+      : generateVitalsRegression({
+          siteId: DEMO_SITE.id,
+          now,
+          seed: plan.incidentFixtures.regression,
+          windowMs: DETECTION_RULES.windowMs,
+        });
+  const allTraffic = regression === null ? traffic : mergeTraffic([traffic, regression]);
+  const totalEvents = allTraffic.metricEvents.length;
   let nextProgressAt = PROGRESS_EVERY_EVENTS;
+  let checkRowsInserted = 0;
 
   db.transaction((tx) => {
     insertSites({ tx, now });
     insertTraffic({
       tx,
-      traffic,
+      traffic: allTraffic,
       onEventsInserted: (insertedSoFar) => {
         if (insertedSoFar < nextProgressAt) {
           return;
@@ -95,12 +173,21 @@ const runSeed = ({ db, now, plan }: { db: Db; now: number; plan: SeedPlan }): vo
         nextProgressAt += PROGRESS_EVERY_EVENTS;
       },
     });
+    if (plan.incidentFixtures !== null) {
+      checkRowsInserted = insertCheckFixture({ tx, siteId: DEMO_SITE.id, now, seed: plan.incidentFixtures.checks });
+    }
   });
 
   console.log(
-    `${plan.label}: ${traffic.sessions.length} sessions, ${traffic.pageviews.length} pageviews, ` +
+    `${plan.label}: ${allTraffic.sessions.length} sessions, ${allTraffic.pageviews.length} pageviews, ` +
       `${totalEvents} metric events generated in ${elapsedSeconds()}s; rows that already existed were left untouched`,
   );
+  if (regression !== null) {
+    console.log(
+      `${plan.label}: incident fixtures: ${regression.sessions.length} sessions on the regressed path ` +
+        `(${regression.metricEvents.length} metric events), ${checkRowsInserted} check observations inserted`,
+    );
+  }
 };
 
 export const seed = (db: Db, now: number = Date.now()): void => runSeed({ db, now, plan: DEMO_PLAN });

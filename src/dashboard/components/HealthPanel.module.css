@@ -1,0 +1,107 @@
+.panel {
+  /* One height for the check row and the empty state, so the first pushed check never shifts the page. */
+  --row-height: 7rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.explanation {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.5rem;
+  min-height: var(--row-height);
+  list-style: none;
+}
+
+.check {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.pill {
+  justify-self: start;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.check[data-tone="good"] .pill {
+  color: var(--rating-good);
+  background: color-mix(in srgb, var(--rating-good) 12%, transparent);
+}
+
+.check[data-tone="needs-improvement"] .pill {
+  color: var(--rating-needs-improvement);
+  background: color-mix(in srgb, var(--rating-needs-improvement) 12%, transparent);
+}
+
+.check[data-tone="poor"] .pill {
+  color: var(--rating-poor);
+  background: color-mix(in srgb, var(--rating-poor) 12%, transparent);
+}
+
+.value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail {
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Centered as a block, not a flex container: flex would make the <code> its own item and drop the space before it. */
+.empty {
+  align-content: center;
+  min-height: var(--row-height);
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

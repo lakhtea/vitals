@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "db:seed": "tsx scripts/seed-db.ts",
     "db:seed:stress": "tsx scripts/seed-db.ts --stress",
+    "incidents:detect": "tsx scripts/detect-incidents.ts",
     "db:generate": "drizzle-kit generate",
     "measure:queries": "tsx scripts/measure-query-count.ts",
     "check:bundle": "tsx scripts/check-bundle-budget.ts",

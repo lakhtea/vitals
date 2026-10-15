@@ -356,3 +356,61 @@ web.dev uses p75 as the headline aggregate because it reflects most users while 
 **web-vitals (package).**
 Google's small library that measures the Core Web Vitals in the browser using PerformanceObserver.
 It is the single runtime dependency of the Vitals browser library.
+
+## Operations: incidents and health checks
+
+**Health check.**
+A verdict an application computes about itself (can it reach its database, is p95 latency under budget) and reports with a timestamp as `ok`, `degraded`, or `failing`.
+Vitals stores every observation; the latest one per check is its current status.
+
+**Incident.**
+A record that the detector decided a human should look at: a vitals regression on one path and metric, or a check that is failing.
+It carries evidence, a status, and a timeline of steps; there is one live incident per subject at a time.
+
+**Detector.**
+Deterministic code that compares two time windows per page and metric, reads check histories, and opens or resolves incidents.
+It never calls a model; what it does is written down in `DETECTION_RULES` and explained in chapter 12.
+
+**Baseline and current window.**
+The two half-open time ranges the detector compares: the last 24 hours and the 24 hours before them.
+A regression is a current p75 well above the baseline p75, not a p75 above a fixed line.
+
+**Sample floor.**
+The minimum number of samples (20) each window must hold before a (page, metric) pair is judged at all.
+Percentiles of a handful of loads swing wildly; the floor is what keeps a quiet page from paging anyone.
+
+**Relative increase.**
+`(current p75 - baseline p75) / baseline p75`, so 0.5 means half again as slow.
+Used instead of an absolute delta because 500 ms matters on a 1 s TTFB and not on a 6 s LCP.
+
+**Rating band.**
+Which of good, needs-improvement, or poor a value falls in under the web.dev thresholds.
+A band change alone is not an incident here; a p75 sitting near a threshold would flap across it daily.
+
+**Incident state machine.**
+The table of allowed status moves (`INCIDENT_TRANSITIONS`): agents walk open to awaiting-human, a person approves or dismisses, the detector resolves.
+Any other move is refused, which is how a human decision can never be overwritten.
+
+**Human gate.**
+The point in the pipeline where nothing proceeds without a person's decision.
+In M12 it is the approve and dismiss buttons; from M14 the person also edits the proposed fix there.
+
+**Incident step.**
+One entry in an incident's timeline: who (an agent role or a human), what they concluded, when, and what it cost.
+Human decisions are steps too, so the timeline is the complete record.
+
+**Write key.**
+A per-site shared secret an application presents as a bearer token to `POST /api/checks`.
+Browsers cannot keep secrets, so `/api/collect` has none; servers can, so health checks need one.
+
+**Bearer token.**
+An `Authorization: Bearer <token>` header: whoever bears the token is trusted.
+Simple and widely understood; the tradeoff is that it must travel over HTTPS and be rotated by hand.
+
+**Partial index.**
+A SQL index with a `WHERE` clause, so it covers only the rows that match.
+The unique index on live incidents uses one, so a resolved incident does not block a new one for the same subject.
+
+**JSON column.**
+A text column holding a JSON document, declared with Drizzle's `mode: "json"` so the row type is the TypeScript shape.
+Used for incident evidence, whose shape differs per source; the columns everyone filters on stay real columns.

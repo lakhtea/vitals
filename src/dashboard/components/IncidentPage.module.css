@@ -1,0 +1,31 @@
+.page {
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.back {
+  font-size: 0.875rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.back:hover {
+  color: var(--foreground);
+}
+
+/* A heading over the form's own card, like the Evidence and Timeline sections above it; no second frame. */
+.gate {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.gateTitle {
+  font-size: 1.05rem;
+  font-weight: 600;
+}

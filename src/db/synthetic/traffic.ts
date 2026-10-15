@@ -4,13 +4,15 @@
 // worse LCP and CLS, the JS-heavy dashboard has worse INP), slower devices and
 // connections multiply timings, and TTFB < FCP < LCP always holds. Two
 // profiles share the one generator: "demo" (a small site's week) and "stress"
-// (a month of volume for the M8 benchmarks).
+// (a month of volume for the M8 benchmarks). The building blocks (path
+// profiles, the visitor mix, per-pageview metrics) are exported so the M12
+// regression fixture in ./regression.ts draws from the same distributions.
 import type { ConnectionType, DeviceClass } from "@/vitals/dimensions";
 import { type MetricName, rateMetric } from "@/vitals/metrics";
 import type { MetricEventInsert, PageviewInsert, SessionInsert } from "../schema";
 import { createRng, logNormal, pickWeighted, randomInt, type Rng, uniform, type Weighted } from "./random";
 
-interface PathProfile {
+export interface PathProfile {
   path: string;
   weight: number;
   lcpFactor: number;
@@ -18,7 +20,7 @@ interface PathProfile {
   clsFactor: number;
 }
 
-const PATH_PROFILES: ReadonlyArray<PathProfile> = [
+export const PATH_PROFILES: ReadonlyArray<PathProfile> = [
   { path: "/", weight: 30, lcpFactor: 1.0, inpFactor: 1.0, clsFactor: 1.0 },
   { path: "/pricing", weight: 12, lcpFactor: 0.9, inpFactor: 0.8, clsFactor: 0.6 },
   { path: "/docs", weight: 10, lcpFactor: 0.8, inpFactor: 0.7, clsFactor: 0.5 },
@@ -56,6 +58,28 @@ const REPORTED_CONNECTION_MIX: ReadonlyArray<Weighted<ConnectionType>> = [
   { value: "2g", weight: 4 },
   { value: "slow-2g", weight: 1 },
 ];
+
+export const pathProfileFor = (path: string): PathProfile => {
+  const profile = PATH_PROFILES.find((candidate) => candidate.path === path);
+  if (profile === undefined) {
+    throw new Error(`No synthetic path profile for ${path}`);
+  }
+  return profile;
+};
+
+/** Who is visiting: the device, browser, and (when the browser reports it) connection, drawn in that order. */
+export interface Visitor {
+  device: DeviceClass;
+  connection: ConnectionType;
+  browserFamily: string;
+}
+
+export const pickVisitor = (rng: Rng): Visitor => {
+  const device = pickWeighted(rng, DEVICE_MIX);
+  const browser = pickWeighted(rng, BROWSER_MIX);
+  const connection = browser.reportsConnection ? pickWeighted(rng, REPORTED_CONNECTION_MIX) : "unknown";
+  return { device, connection, browserFamily: browser.family };
+};
 
 export type TrafficProfileName = "demo" | "stress";
 
@@ -109,7 +133,8 @@ const CONNECTION_SLOWDOWN: Record<ConnectionType, number> = {
 
 const INTERACTION_PROBABILITY = 0.7;
 
-interface PageviewMetrics {
+/** One pageview's five metric values; INP is null when the visitor never interacted. */
+export interface PageviewMetrics {
   TTFB: number;
   FCP: number;
   LCP: number;
@@ -128,7 +153,7 @@ const sampleCls = (rng: Rng, clsFactor: number): number => {
   return uniform(rng, 0.25, 0.9) * clsFactor;
 };
 
-const sampleMetrics = ({
+export const sampleMetrics = ({
   rng,
   profile,
   device,
@@ -163,6 +188,43 @@ export interface SyntheticTraffic {
   metricEvents: MetricEventInsert[];
 }
 
+/**
+ * The metric event rows one pageview produces. Load metrics are recorded when
+ * they happen (start + value); CLS and INP settle later in the visit, so their
+ * recorded times are drawn separately, CLS first.
+ */
+export const metricEventsForPageview = ({
+  rng,
+  pageviewId,
+  startedAt,
+  metrics,
+}: {
+  rng: Rng;
+  pageviewId: string;
+  startedAt: number;
+  metrics: PageviewMetrics;
+}): MetricEventInsert[] => {
+  const event = ({ name, value, recordedAt }: { name: MetricName; value: number; recordedAt: number }) => ({
+    pageviewId,
+    metricId: `${pageviewId}-${name}`,
+    name,
+    value,
+    rating: rateMetric({ name, value }),
+    recordedAt,
+  });
+
+  const events = [
+    event({ name: "TTFB", value: metrics.TTFB, recordedAt: startedAt + metrics.TTFB }),
+    event({ name: "FCP", value: metrics.FCP, recordedAt: startedAt + metrics.FCP }),
+    event({ name: "LCP", value: metrics.LCP, recordedAt: startedAt + metrics.LCP }),
+    event({ name: "CLS", value: metrics.CLS, recordedAt: startedAt + randomInt(rng, 2_000, 20_000) }),
+  ];
+  if (metrics.INP === null) {
+    return events;
+  }
+  return [...events, event({ name: "INP", value: metrics.INP, recordedAt: startedAt + randomInt(rng, 3_000, 40_000) })];
+};
+
 export const generateSyntheticTraffic = ({
   siteId,
   sessionCount,
@@ -180,41 +242,18 @@ export const generateSyntheticTraffic = ({
   const { idPrefix, windowMs, pageviewsPerSession } = TRAFFIC_PROFILES[profile];
   const traffic: SyntheticTraffic = { sessions: [], pageviews: [], metricEvents: [] };
 
-  const recordEvent = ({
-    pageviewId,
-    name,
-    value,
-    recordedAt,
-  }: {
-    pageviewId: string;
-    name: MetricName;
-    value: number;
-    recordedAt: number;
-  }): void => {
-    traffic.metricEvents.push({
-      pageviewId,
-      metricId: `${pageviewId}-${name}`,
-      name,
-      value,
-      rating: rateMetric({ name, value }),
-      recordedAt,
-    });
-  };
-
   for (let sessionIndex = 0; sessionIndex < sessionCount; sessionIndex += 1) {
     const sessionId = `${idPrefix}-s${sessionIndex}`;
-    const device = pickWeighted(rng, DEVICE_MIX);
-    const browser = pickWeighted(rng, BROWSER_MIX);
-    const connection = browser.reportsConnection ? pickWeighted(rng, REPORTED_CONNECTION_MIX) : "unknown";
+    const visitor = pickVisitor(rng);
     const sessionStartedAt = now - Math.floor(uniform(rng, 0, windowMs));
 
     traffic.sessions.push({
       id: sessionId,
       siteId,
       startedAt: sessionStartedAt,
-      deviceClass: device,
-      connectionType: connection,
-      userAgentFamily: browser.family,
+      deviceClass: visitor.device,
+      connectionType: visitor.connection,
+      userAgentFamily: visitor.browserFamily,
     });
 
     let pageviewStartedAt = sessionStartedAt;
@@ -228,24 +267,8 @@ export const generateSyntheticTraffic = ({
       );
       traffic.pageviews.push({ id: pageviewId, sessionId, path: pathProfile.path, startedAt: pageviewStartedAt });
 
-      const metrics = sampleMetrics({ rng, profile: pathProfile, device, connection });
-      recordEvent({ pageviewId, name: "TTFB", value: metrics.TTFB, recordedAt: pageviewStartedAt + metrics.TTFB });
-      recordEvent({ pageviewId, name: "FCP", value: metrics.FCP, recordedAt: pageviewStartedAt + metrics.FCP });
-      recordEvent({ pageviewId, name: "LCP", value: metrics.LCP, recordedAt: pageviewStartedAt + metrics.LCP });
-      recordEvent({
-        pageviewId,
-        name: "CLS",
-        value: metrics.CLS,
-        recordedAt: pageviewStartedAt + randomInt(rng, 2_000, 20_000),
-      });
-      if (metrics.INP !== null) {
-        recordEvent({
-          pageviewId,
-          name: "INP",
-          value: metrics.INP,
-          recordedAt: pageviewStartedAt + randomInt(rng, 3_000, 40_000),
-        });
-      }
+      const metrics = sampleMetrics({ rng, profile: pathProfile, device: visitor.device, connection: visitor.connection });
+      traffic.metricEvents.push(...metricEventsForPageview({ rng, pageviewId, startedAt: pageviewStartedAt, metrics }));
 
       pageviewStartedAt += randomInt(rng, 5_000, 120_000);
     }

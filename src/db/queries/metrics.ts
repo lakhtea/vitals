@@ -22,6 +22,17 @@ export interface MetricSummaryRow {
   poor: number;
 }
 
+/** A per-path row with the path guaranteed present (the "every path" grouping never produces a rollup row). */
+export interface PathMetricSummaryRow extends MetricSummaryRow {
+  path: string;
+}
+
+/**
+ * How rows are grouped: one row per metric for the whole site, or one row per
+ * (path, metric), either for a given list of paths or for every path seen.
+ */
+type Grouping = { by: "site" } | { by: "path"; paths: readonly string[] | null };
+
 /** ceil(percent% of n) with integer arithmetic, which SQLite lacks a CEIL for. */
 const nearestRank = (percent: number): SQL => sql.raw(`(sample_count * ${percent} + 99) / 100`);
 
@@ -30,22 +41,22 @@ const inList = (values: readonly string[]): SQL => sql.join(values.map((value) =
 const summarise = ({
   db,
   siteIds,
-  paths,
+  grouping,
   filter,
 }: {
   db: Db;
   siteIds: readonly string[];
-  /** Null groups the whole site into one row per metric. */
-  paths: readonly string[] | null;
+  grouping: Grouping;
   filter: TrafficFilter;
 }): MetricSummaryRow[] => {
-  if (siteIds.length === 0 || paths?.length === 0) {
+  if (siteIds.length === 0 || (grouping.by === "path" && grouping.paths?.length === 0)) {
     return [];
   }
   const from = filter.from ?? 0;
   const to = filter.to ?? Number.MAX_SAFE_INTEGER;
-  const pathColumn = paths === null ? sql`NULL` : sql`pv.path`;
-  const pathFilter = paths === null ? sql`` : sql`AND pv.path IN (${inList(paths)})`;
+  const pathColumn = grouping.by === "site" ? sql`NULL` : sql`pv.path`;
+  const pathFilter =
+    grouping.by === "path" && grouping.paths !== null ? sql`AND pv.path IN (${inList(grouping.paths)})` : sql``;
 
   return db.all<MetricSummaryRow>(sql`
     WITH ranked AS (
@@ -93,7 +104,7 @@ export const loadPageMetrics = ({
   siteIds: readonly string[];
   paths: readonly string[];
   filter: TrafficFilter;
-}): MetricSummaryRow[] => summarise({ db, siteIds, paths, filter });
+}): MetricSummaryRow[] => summarise({ db, siteIds, grouping: { by: "path", paths }, filter });
 
 export const loadSiteMetrics = ({
   db,
@@ -103,4 +114,17 @@ export const loadSiteMetrics = ({
   db: Db;
   siteIds: readonly string[];
   filter: TrafficFilter;
-}): MetricSummaryRow[] => summarise({ db, siteIds, paths: null, filter });
+}): MetricSummaryRow[] => summarise({ db, siteIds, grouping: { by: "site" }, filter });
+
+/** Every (path, metric) of one site in one statement; the incident detector's view of a window. */
+export const loadAllPathMetrics = ({
+  db,
+  siteId,
+  filter,
+}: {
+  db: Db;
+  siteId: string;
+  filter: TrafficFilter;
+}): PathMetricSummaryRow[] =>
+  // Grouped by pv.path, so every row carries a path; the shared row type only allows null for the site rollup.
+  summarise({ db, siteIds: [siteId], grouping: { by: "path", paths: null }, filter }) as PathMetricSummaryRow[];
