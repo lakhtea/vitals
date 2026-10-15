@@ -11,7 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { isDemoMode } from "@/config/demo-mode";
 import { detectIncidentsForAllSites } from "@/incidents/detect";
 import * as schema from "./schema";
-import { seed } from "./seed";
+import { attachSeededFix, seed } from "./seed";
 
 export type Db = BetterSQLite3Database<typeof schema>;
 
@@ -55,11 +55,13 @@ export const getDb = (): Db => {
   if (sharedDb === null) {
     sharedDb = makeDb();
     if (isDemoMode()) {
-      // A fresh instance starts with an empty temp dir, so seed on first open
-      // and open the seeded incidents right away. Both steps are idempotent,
-      // so a warm instance that re-opens is harmless.
+      // A fresh instance starts with an empty temp dir, so seed on first open,
+      // open the seeded incidents right away, and give the /pricing one its
+      // proposed fix (which needs the incident to exist, so it runs after
+      // detection). All three are idempotent, so a warm instance that re-opens is harmless.
       seed(sharedDb);
       detectIncidentsForAllSites({ db: sharedDb });
+      attachSeededFix({ db: sharedDb });
     }
   }
   return sharedDb;

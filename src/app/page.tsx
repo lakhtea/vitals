@@ -12,6 +12,7 @@ import styles from "@/dashboard/components/DashboardView.module.css";
 import { SelfMeasurementPanel, type SelfMeasuredMetric } from "@/dashboard/components/SelfMeasurementPanel";
 import { DEFAULT_FILTERS, toTrafficFilter } from "@/dashboard/filters";
 import { DASHBOARD, SELF_MEASUREMENT, SITES } from "@/dashboard/queries";
+import { loadUpstreamStatus } from "@/demo/slow-upstream";
 
 interface Overview {
   /** The one clock reading for this request; every time window counts back from it. */
@@ -44,6 +45,9 @@ const loadOverview = async (): Promise<Overview> => {
   // better-sqlite3 answers synchronously, so without this Next would happily
   // prerender the page at build time with whatever the database held then.
   await connection();
+  // A no-op unless VITALS_DEMO_REGRESSION=1, which makes this render wait on a slow simulated upstream:
+  // the planted cause the seeded proposed fix (and, from M15, the fix agent) addresses.
+  await loadUpstreamStatus();
   const asOf = Date.now();
 
   const sitesResult = await query({ query: SITES });

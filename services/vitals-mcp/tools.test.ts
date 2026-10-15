@@ -89,7 +89,7 @@ afterEach(async () => {
 });
 
 describe("vitals MCP server", () => {
-  it("offers exactly the four agent tools, and no human-only role", async () => {
+  it("offers exactly the five agent tools, and no human-only role", async () => {
     const { mcp } = await connect();
 
     const { tools } = await mcp.listTools();
@@ -99,6 +99,7 @@ describe("vitals MCP server", () => {
       "list_open_incidents",
       "record_step",
       "request_human_review",
+      "submit_fix",
     ]);
     const recordStep = tools.find((tool) => tool.name === "record_step");
     expect(recordStep?.inputSchema.properties?.role).toMatchObject({
@@ -215,6 +216,41 @@ describe("vitals MCP server", () => {
     expect(refused.isError).toBe(true);
     expect(refused.body.error).toMatch(/service token/);
     expect(context.body.incident.steps).toEqual([]);
+  });
+
+  it("submits a fix that the incident's context then shows as the latest revision, and refuses an invalid file set", async () => {
+    const { mcp } = await connect();
+    const regression = await findIncident(mcp, "WEB_VITALS");
+    const fix = {
+      incidentId: regression.id,
+      targetRepo: "lakhtea/vitals",
+      baseSha: "abc123",
+      summary: "Serve a smaller hero image on /pricing",
+    };
+
+    const submitted = await callTool(mcp, "submit_fix", {
+      ...fix,
+      files: [{ path: "src/hero.ts", action: "modify", before: "export const WIDTH = 2400;\n", after: "export const WIDTH = 1200;\n" }],
+    });
+    const invalid = await callTool(mcp, "submit_fix", {
+      ...fix,
+      files: [{ path: "../outside.ts", action: "add", after: "x" }],
+    });
+    const context = await callTool(mcp, "get_incident_context", { incidentId: regression.id });
+
+    expect(submitted).toEqual({
+      isError: false,
+      body: { revision: { id: expect.any(String), number: 1 }, pageUrl: `${BASE_URL}/incidents/${regression.id}` },
+    });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.body.error).toMatch(/"\.\."/);
+    expect(context.body.incident.latestFixRevision).toEqual({
+      number: 1,
+      author: "AGENT",
+      summary: fix.summary,
+      reviewed: false,
+      files: [{ path: "src/hero.ts", action: "MODIFY" }],
+    });
   });
 
   it("reports an unknown incident as a tool error instead of failing the call", async () => {

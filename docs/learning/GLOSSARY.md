@@ -459,3 +459,44 @@ A scheduled request to an application's health URL whose timing and status are c
 **Breakdown.**
 The same p75 split by one dimension, here device class and connection type, over the incident's two windows.
 It answers "who got slower", which is the first question when triaging a regression.
+
+## Reviewing a proposed change
+
+**Fix revision.**
+One version of a proposed change: a base commit SHA, a target repository, a summary, and each touched file's full before and after text.
+Revisions are immutable; an edit writes the next one.
+
+**Base SHA.**
+The commit a change was made against.
+A patch only means something relative to its base, which is why a revision records it and the worker cuts its branch from it.
+
+**Unified diff.**
+The text format that shows a change as hunks: a header like `@@ -12,7 +12,9 @@`, a few lines of context, and removed (`-`) and added (`+`) lines.
+Here it is a view computed on the server, never the stored source of truth.
+
+**Hunk.**
+One contiguous group of changes in a diff with its surrounding context lines.
+Its header records where it starts and how many lines it spans in the old and new file.
+
+**Longest common subsequence.**
+The longest list of lines both files contain in the same order.
+Everything outside it is what the diff reports as removed or added.
+
+**Myers diff algorithm.**
+The 1986 algorithm most diff tools descend from: it searches edit scripts in order of length, so files that differ by a few lines are compared quickly regardless of size.
+
+**Pinned revision.**
+The exact revision a person approved, stored on the incident.
+Approving anything but the latest revision is refused, so what was approved is what the worker ships.
+
+**CodeMirror 6.**
+A modular in-browser code editor: an immutable state, transactions that produce new states, and a view that renders a state into a contenteditable element.
+Used here for small edits to a proposed change, loaded only when someone clicks Edit.
+
+**Lazy loading.**
+Splitting a module into its own chunk that the browser fetches only when it is first rendered.
+`next/dynamic` does it here for the editor, which keeps CodeMirror out of the incident page's first-load JavaScript.
+
+**Route bundle baseline.**
+The committed First Load JS size of one route, with a tolerance the CI check enforces.
+`bundle-budget.json` holds one per route, so a new route never resets an older baseline.

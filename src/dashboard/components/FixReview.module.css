@@ -1,0 +1,256 @@
+.panel {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.header {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.meta {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  color: var(--foreground);
+}
+
+.summary {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.files {
+  display: grid;
+  gap: 1.25rem;
+  list-style: none;
+}
+
+.file {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.fileHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.fileTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.pill[data-tone="needs-improvement"] {
+  color: var(--rating-needs-improvement);
+  background: color-mix(in srgb, var(--rating-needs-improvement) 12%, transparent);
+}
+
+.pill[data-tone="poor"] {
+  color: var(--rating-poor);
+  background: color-mix(in srgb, var(--rating-poor) 12%, transparent);
+}
+
+.form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.hint,
+.loading {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted);
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.note {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  resize: vertical;
+}
+
+/* The alert is read in the normal colour too, so the message never depends on red. */
+.error {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rating-poor);
+  border-radius: 6px;
+  color: var(--rating-poor);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.primary,
+.secondary {
+  height: 2.25rem;
+  padding: 0 1rem;
+  border: 1px solid var(--foreground);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.secondary {
+  border-color: var(--border);
+  color: inherit;
+  background: var(--surface);
+}
+
+.secondary:hover:enabled {
+  border-color: var(--muted);
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--muted);
+}
+
+.empty {
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.history {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.historyTitle {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.revisions {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.revision {
+  display: grid;
+  gap: 0.125rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.revisionHeading {
+  font-weight: 600;
+}
+
+.revisionTime {
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.revisionSummary {
+  overflow-wrap: anywhere;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

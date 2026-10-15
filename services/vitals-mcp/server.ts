@@ -1,4 +1,4 @@
-// Builds the MCP server: one McpServer named "vitals" with the four tools
+// Builds the MCP server: one McpServer named "vitals" with the five tools
 // registered. Transport-free, so main.ts can serve it over stdio and the tests
 // can drive it over the SDK's in-memory transport.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -9,6 +9,7 @@ import {
   recordStep,
   requestHumanReview,
   runTool,
+  submitFix,
   type ToolDeps,
   type ToolMetadata,
 } from "./tools";
@@ -48,6 +49,11 @@ export const createVitalsMcpServer = ({ client, baseUrl }: VitalsMcpServerOption
     recordStep.name,
     { ...config(recordStep), inputSchema: recordStep.inputSchema },
     (input) => runTool(() => recordStep.handler(deps, input)),
+  );
+  server.registerTool(
+    submitFix.name,
+    { ...config(submitFix), inputSchema: submitFix.inputSchema },
+    (input) => runTool(() => submitFix.handler(deps, input)),
   );
   server.registerTool(
     requestHumanReview.name,

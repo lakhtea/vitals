@@ -110,6 +110,32 @@ export const INCIDENT_DETAIL = graphql(`
     updatedAt
     resolvedAt
     note
+    latestFixRevision {
+      id
+      number
+      author
+      createdAt
+      summary
+      targetRepo
+      baseSha
+      reviewed
+      files {
+        path
+        action
+        diff
+        afterContent
+      }
+    }
+    fixRevisions {
+      number
+      author
+      createdAt
+      summary
+    }
+    approvedRevision {
+      number
+      author
+    }
     vitalsEvidence {
       path
       metric
@@ -166,8 +192,8 @@ export const INCIDENT = graphql(`
 `);
 
 export const APPROVE_INCIDENT = graphql(`
-  mutation ApproveIncident($id: ID!, $note: String) {
-    approveIncident(id: $id, note: $note) {
+  mutation ApproveIncident($id: ID!, $note: String, $revisionId: ID) {
+    approveIncident(id: $id, note: $note, revisionId: $revisionId) {
       ...IncidentDetail
     }
   }
@@ -177,6 +203,16 @@ export const DISMISS_INCIDENT = graphql(`
   mutation DismissIncident($id: ID!, $note: String) {
     dismissIncident(id: $id, note: $note) {
       ...IncidentDetail
+    }
+  }
+`);
+
+/** A person's edit to the latest proposed change; the server writes it as the next revision. */
+export const EDIT_FIX_REVISION = graphql(`
+  mutation EditFixRevision($revisionId: ID!, $files: [FixFileEdit!]!, $note: String) {
+    editFixRevision(revisionId: $revisionId, files: $files, note: $note) {
+      id
+      number
     }
   }
 `);

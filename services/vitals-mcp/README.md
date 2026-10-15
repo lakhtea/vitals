@@ -9,8 +9,9 @@ Nothing here calls a model; the agent that calls these tools is the one that thi
 | Tool | Input | What it does |
 | --- | --- | --- |
 | `list_open_incidents` | `siteId` (default `"demo"`), `status` (default `OPEN`) | Lists a site's incidents in one status, each with a one-line evidence summary. |
-| `get_incident_context` | `incidentId` | Everything about one incident as JSON: evidence, device and connection breakdown, steps so far, the person's note, and for a health check the check's last 20 observations. |
+| `get_incident_context` | `incidentId` | Everything about one incident as JSON: evidence, device and connection breakdown, steps so far, the latest proposed fix revision (number, author, summary, whether a review covers it, its files), the person's note, and for a health check the check's last 20 observations. |
 | `record_step` | `incidentId`, `role` (`summarize`, `propose-fix`, `review`, `open-pr`), `status` (`running`, `succeeded`, `failed`), `summary`, and optional `detail`, `startedAt`, `finishedAt`, `model`, `inputTokens`, `outputTokens`, `costUsd`, `link` | Appends a step to the incident's timeline. The `human` role is not offered: a person decides on the incident page. |
+| `submit_fix` | `incidentId`, `targetRepo`, `baseSha`, `summary`, `files` (each `path`, `action` (`add`, `modify`, `delete`), optional `before` and `after`) | Proposes a change as whole file contents read at `baseSha`; the server derives the diff a person reviews and edits. Writes the next revision and returns its `id` and `number` with the incident page's URL. At most 20 files and 200,000 bytes per content. |
 | `request_human_review` | `incidentId`, `summary` | Moves a `REVIEWED` incident to `AWAITING_HUMAN` and returns the incident page's URL for the person. Records no step itself. |
 
 Approving and dismissing are deliberately absent: those are a person's decisions.

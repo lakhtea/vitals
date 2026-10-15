@@ -8,9 +8,10 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactElement } from "react";
 import { query } from "@/app/apollo/rsc-client";
-import { toIncidentDetail } from "@/dashboard/adapters";
+import { toFixHistory, toFixRevisionData, toIncidentDetail } from "@/dashboard/adapters";
 import { IncidentDecision } from "@/dashboard/components/IncidentDecision";
 import { IncidentDetail } from "@/dashboard/components/IncidentDetail";
+import { IncidentFixReview } from "@/dashboard/components/IncidentFixReview";
 import styles from "@/dashboard/components/IncidentPage.module.css";
 import { incidentTitle } from "@/dashboard/incidents";
 import { INCIDENT } from "@/dashboard/queries";
@@ -47,6 +48,9 @@ export default async function IncidentPage({ params }: IncidentPageProps): Promi
     notFound();
   }
   const incident = toIncidentDetail(found);
+  const latestRevision = found.latestFixRevision;
+  // A proposal can be edited until someone decides; after approval the pinned revision is final.
+  const editable = incident.status !== "approved" && incident.status !== "dismissed" && incident.status !== "resolved";
 
   return (
     <main className={styles.page}>
@@ -56,6 +60,13 @@ export default async function IncidentPage({ params }: IncidentPageProps): Promi
         </Link>
       </nav>
       <IncidentDetail incident={incident} />
+      {latestRevision !== null && (
+        <IncidentFixReview
+          revision={toFixRevisionData(latestRevision)}
+          history={toFixHistory(found.fixRevisions)}
+          editable={editable}
+        />
+      )}
       <section className={styles.gate} aria-labelledby="decision-heading">
         <h2 id="decision-heading" className={styles.gateTitle}>
           Your decision
@@ -65,7 +76,12 @@ export default async function IncidentPage({ params }: IncidentPageProps): Promi
             The agents have finished their steps and stopped here. Nothing leaves the repository until you approve.
           </p>
         )}
-        <IncidentDecision incidentId={incident.id} status={incident.status} />
+        {found.approvedRevision !== null && (
+          <p className={styles.callout}>
+            Approved revision {found.approvedRevision.number}. That exact revision is what will become the pull request.
+          </p>
+        )}
+        <IncidentDecision incidentId={incident.id} status={incident.status} revisionId={latestRevision?.id ?? null} />
       </section>
     </main>
   );

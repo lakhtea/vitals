@@ -2,6 +2,7 @@
 // src/checks, and src/incidents so the schema cannot drift from the database;
 // names need spelling out because GraphQL enum values cannot contain hyphens.
 import { CHECK_STATUSES } from "@/checks/status";
+import { FILE_ACTIONS, FIX_AUTHORS } from "@/incidents/fix";
 import { INCIDENT_SOURCES, INCIDENT_STATUSES, STEP_ROLES, STEP_STATUSES } from "@/incidents/vocabulary";
 import { METRIC_NAMES } from "@/vitals/metrics";
 import { builder } from "./builder";
@@ -74,4 +75,14 @@ export const StepRoleEnum = builder.enumType("StepRole", {
 
 export const StepStatusEnum = builder.enumType("StepStatus", {
   values: toEnumValues(STEP_STATUSES),
+});
+
+export const FixAuthorEnum = builder.enumType("FixAuthor", {
+  description: "Who wrote a fix revision: an agent proposing it, or a person editing it.",
+  values: toEnumValues(FIX_AUTHORS),
+});
+
+export const FileActionEnum = builder.enumType("FileAction", {
+  description: "What a fix revision does to one file.",
+  values: toEnumValues(FILE_ACTIONS),
 });

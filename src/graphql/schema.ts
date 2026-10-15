@@ -4,7 +4,8 @@
 import { eq } from "drizzle-orm";
 import { GraphQLError } from "graphql";
 import { listLatestChecksForSite } from "@/db/queries/checks";
-import { decideIncident, getIncident, listIncidentsForSite, transitionIncident } from "@/db/queries/incidents";
+import { editFixRevision, submitFixRevision } from "@/db/queries/fix-revisions";
+import { type DecisionResult, decideIncident, getIncident, listIncidentsForSite, transitionIncident } from "@/db/queries/incidents";
 import { loadSiteMetrics } from "@/db/queries/metrics";
 import { type PageAggregate, listPagesForSite } from "@/db/queries/pages";
 import { listSessionsForSite } from "@/db/queries/sessions";
@@ -15,10 +16,11 @@ import type { HumanDecision } from "@/incidents/vocabulary";
 import { builder } from "./builder";
 import { type Context, requireService } from "./context";
 import { IncidentStatusEnum, StepRoleEnum, StepStatusEnum } from "./enums";
-import { StepUsageInput, toStepUsage, toTrafficFilter, TrafficFilterInput } from "./inputs";
+import { FixFileEdit, FixFileInput, StepUsageInput, toStepUsage, toTrafficFilter, TrafficFilterInput } from "./inputs";
 import { batchLoadPageMetrics, pageMetricsCacheKey, type PageMetricsKey } from "./loaders/page-metrics";
 import "./scalars";
 import { CheckType } from "./types/checks";
+import { FixRevisionType } from "./types/fix-revisions";
 import { DetectionResultType, IncidentStepType, IncidentType } from "./types/incidents";
 import { MetricSummaryType } from "./types/metrics";
 import { SessionType } from "./types/sessions";
@@ -104,9 +106,9 @@ const SiteType = builder.objectRef<SiteRow>("Site").implement({
 const siteExists = ({ db, siteId }: { db: Context["db"]; siteId: string }): boolean =>
   db.select({ id: sites.id }).from(sites).where(eq(sites.id, siteId)).get() !== undefined;
 
-// An ID arrives as a string; an incident id is an integer row id, and anything
-// else names no incident rather than being an error.
-const parseIncidentId = (id: string | number): number | null => {
+// An ID arrives as a string; incident and revision ids are integer row ids, and
+// anything else names no row rather than being an error.
+const parseRowId = (id: string | number): number | null => {
   const text = String(id);
   if (!/^\d+$/.test(text)) {
     return null;
@@ -121,34 +123,62 @@ const normaliseNote = (note: string | null | undefined): string | null => {
   return trimmed === undefined || trimmed === "" ? null : trimmed;
 };
 
+/** The message a person sees when a decision is refused. */
+const decisionRefusal = ({ id, result }: { id: string | number; result: Exclude<DecisionResult, { ok: true }> }): string => {
+  switch (result.reason) {
+    case "not-found":
+      return `No incident with id "${id}"`;
+    case "illegal-transition":
+      return `Incident ${id} cannot move from "${result.from}" to "${result.to}"`;
+    case "revision-required":
+      return `Incident ${id} has a proposed fix; approve it by passing revisionId for revision ${result.latestNumber}, the latest`;
+    case "no-revisions":
+      return `Incident ${id} has no proposed fix, so approving it takes no revisionId`;
+    case "revision-not-found":
+      return `No fix revision with id "${result.revisionId}"`;
+    case "foreign-revision":
+      return `Revision ${result.number} belongs to another incident; incident ${id}'s latest revision is ${result.latestNumber}`;
+    case "stale-revision":
+      return `Revision ${result.number} is not the latest; review revision ${result.latestNumber} before approving`;
+  }
+};
+
 const applyHumanDecision = ({
   ctx,
   id,
   decision,
   note,
+  revisionId = null,
 }: {
   ctx: Context;
   id: string | number;
   decision: HumanDecision;
   note: string | null | undefined;
+  revisionId?: string | number | null;
 }): IncidentRow => {
-  const incidentId = parseIncidentId(id);
+  const incidentId = parseRowId(id);
   if (incidentId === null) {
     throw new GraphQLError(`No incident with id "${id}"`);
   }
-  const result = decideIncident({ db: ctx.db, id: incidentId, decision, note: normaliseNote(note), now: Date.now() });
+  // An unparseable revision id names no revision; -1 keeps that refusal in one place, the query module.
+  const pinnedId = revisionId === null ? null : (parseRowId(revisionId) ?? -1);
+  const result = decideIncident({
+    db: ctx.db,
+    id: incidentId,
+    decision,
+    note: normaliseNote(note),
+    revisionId: pinnedId,
+    now: Date.now(),
+  });
   if (!result.ok) {
-    if (result.reason === "not-found") {
-      throw new GraphQLError(`No incident with id "${id}"`);
-    }
-    throw new GraphQLError(`Incident ${id} cannot move from "${result.from}" to "${result.to}"`);
+    throw new GraphQLError(decisionRefusal({ id, result }));
   }
   return result.incident;
 };
 
 /** An id that names no incident is an error for a write, where the read field would return null. */
 const requireIncidentId = (id: string | number): number => {
-  const incidentId = parseIncidentId(id);
+  const incidentId = parseRowId(id);
   if (incidentId === null) {
     throw new GraphQLError(`No incident with id "${id}"`);
   }
@@ -179,7 +209,7 @@ builder.queryFields((t) => ({
     description: "One incident by id, with its evidence and steps; null when no incident has that id.",
     args: { id: t.arg.id({ required: true }) },
     resolve: (_root, args, ctx) => {
-      const incidentId = parseIncidentId(args.id);
+      const incidentId = parseRowId(args.id);
       return incidentId === null ? null : (getIncident({ db: ctx.db, id: incidentId }) ?? null);
     },
   }),
@@ -200,9 +230,11 @@ builder.mutationFields((t) => ({
   }),
   approveIncident: t.field({
     type: IncidentType,
-    description: "A human confirms the incident is real and worth fixing. Allowed from any live status; refused once decided or resolved.",
-    args: { id: t.arg.id({ required: true }), note: t.arg.string() },
-    resolve: (_root, args, ctx) => applyHumanDecision({ ctx, id: args.id, decision: "approved", note: args.note }),
+    description:
+      "A human confirms the incident is real and worth fixing. Allowed from any live status; refused once decided or resolved. When the incident has a proposed fix, revisionId is required and must be its latest revision, which the approval pins; when it has none, revisionId must be absent.",
+    args: { id: t.arg.id({ required: true }), note: t.arg.string(), revisionId: t.arg.id() },
+    resolve: (_root, args, ctx) =>
+      applyHumanDecision({ ctx, id: args.id, decision: "approved", note: args.note, revisionId: args.revisionId ?? null }),
   }),
   dismissIncident: t.field({
     type: IncidentType,
@@ -279,6 +311,90 @@ builder.mutationFields((t) => ({
           throw new GraphQLError(`No incident with id "${id}"`);
         case "illegal-transition":
           throw new GraphQLError(`Incident ${id} cannot move from "${result.from}" to "${result.to}"`);
+      }
+    },
+  }),
+  submitFixRevision: t.field({
+    type: FixRevisionType,
+    description:
+      "An agent proposes a change. Needs the service token. The incident must be live (not dismissed, resolved, or approved).",
+    args: {
+      incidentId: t.arg.id({ required: true }),
+      targetRepo: t.arg.string({ required: true, description: '"owner/name" of the repository.' }),
+      baseSha: t.arg.string({ required: true, description: "The commit the before contents were read at." }),
+      summary: t.arg.string({ required: true }),
+      files: t.arg({ type: [FixFileInput], required: true, description: "1 to 20 files, each content at most 200,000 UTF-8 bytes." }),
+    },
+    resolve: (_root, args, ctx) => {
+      requireService(ctx);
+      const id = String(args.incidentId);
+      const result = submitFixRevision({
+        db: ctx.db,
+        input: {
+          incidentId: requireIncidentId(id),
+          targetRepo: args.targetRepo,
+          baseSha: args.baseSha,
+          summary: args.summary,
+          files: args.files.map((file) => ({
+            path: file.path,
+            action: file.action,
+            before: file.beforeContent ?? null,
+            after: file.afterContent ?? null,
+          })),
+        },
+        now: Date.now(),
+      });
+      if (result.ok) {
+        return result.revision;
+      }
+      switch (result.reason) {
+        case "invalid":
+          throw new GraphQLError(result.message);
+        case "not-found":
+          throw new GraphQLError(`No incident with id "${id}"`);
+        case "not-live":
+          throw new GraphQLError(`Incident ${id} is "${result.status}"; a fix can only be proposed while it is live`);
+      }
+    },
+  }),
+  editFixRevision: t.field({
+    type: FixRevisionType,
+    description:
+      'A person edits the latest revision\'s new contents; writes a new HUMAN revision (unchanged files copied) and a HUMAN step "Edited the proposed change (revision N)" with the note as detail. Only ADD and MODIFY files can be edited, only the incident\'s latest revision, only while the incident is live and not approved. Refused when nothing changed.',
+    args: {
+      revisionId: t.arg.id({ required: true }),
+      files: t.arg({ type: [FixFileEdit], required: true }),
+      note: t.arg.string(),
+    },
+    resolve: (_root, args, ctx) => {
+      const id = String(args.revisionId);
+      const revisionId = parseRowId(id);
+      if (revisionId === null) {
+        throw new GraphQLError(`No fix revision with id "${id}"`);
+      }
+      const result = editFixRevision({
+        db: ctx.db,
+        revisionId,
+        edits: args.files.map((file) => ({ path: file.path, after: file.afterContent })),
+        note: normaliseNote(args.note),
+        now: Date.now(),
+      });
+      if (result.ok) {
+        return result.revision;
+      }
+      switch (result.reason) {
+        case "not-found":
+          throw new GraphQLError(`No fix revision with id "${id}"`);
+        case "not-live":
+          throw new GraphQLError(`The incident is "${result.status}"; its proposed fix can no longer be edited`);
+        case "stale":
+          throw new GraphQLError(
+            `Revision ${result.number} is not the latest; edit revision ${result.latestNumber} instead`,
+          );
+        case "invalid":
+          throw new GraphQLError(result.message);
+        case "unchanged":
+          throw new GraphQLError("Nothing changed: the edit matches the revision it started from");
       }
     },
   }),

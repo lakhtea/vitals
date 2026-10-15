@@ -1,16 +1,17 @@
-// The four MCP tools: what a model reads about each (name, description, input
+// The five MCP tools: what a model reads about each (name, description, input
 // schema) and the handler behind it. Handlers are pure over a VitalsClient, so
 // every capability an agent has is a GraphQL operation the schema already guards.
 import type { ShapeOutput, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import type { IncidentStatus, McpOpenIncidentsQuery, StepRole, StepStatus } from "./generated/graphql";
+import type { FileAction, IncidentStatus, McpOpenIncidentsQuery, StepRole, StepStatus } from "./generated/graphql";
 import type { VitalsClient } from "./client";
 import {
   MCP_CHECK_HISTORY,
   MCP_INCIDENT_CONTEXT,
   MCP_OPEN_INCIDENTS,
   MCP_RECORD_STEP,
+  MCP_SUBMIT_FIX,
   MCP_TRANSITION_INCIDENT,
 } from "./documents";
 
@@ -214,6 +215,61 @@ export const recordStep = defineTool({
       link: input.link,
     });
     return { step, pageUrl: incidentPageUrl({ baseUrl, incidentId: input.incidentId }) };
+  },
+});
+
+const FILE_ACTIONS = ["add", "modify", "delete"] as const;
+const TO_FILE_ACTION: Record<(typeof FILE_ACTIONS)[number], FileAction> = {
+  add: "ADD",
+  modify: "MODIFY",
+  delete: "DELETE",
+};
+
+export const submitFix = defineTool({
+  name: "submit_fix",
+  title: "Propose a code change for an incident",
+  description:
+    "Proposes a change that fixes an incident, as whole file contents read at one commit: for each file, its " +
+    "path relative to the repository root, the action (add, modify, or delete), `before` (the file at baseSha; " +
+    "omit for add) and `after` (the new file; omit for delete). The server derives the diff a person reviews. " +
+    "At most 20 files and 200,000 bytes per content; paths must be relative with no `..`. Each call writes the " +
+    "next revision; the person may edit it into a newer one before approving. Refused once the incident is " +
+    "approved, dismissed, or resolved. Returns the revision's id and number and the incident page's URL.",
+  inputSchema: {
+    incidentId: z.string().min(1).describe("The incident's id."),
+    targetRepo: z.string().min(1).describe('The repository the change applies to, as "owner/name".'),
+    baseSha: z.string().min(1).describe("The commit the before contents were read at."),
+    summary: z.string().min(1).describe("One line: what the change does and why it fixes the incident."),
+    files: z
+      .array(
+        z.object({
+          path: z.string().min(1).describe("Relative to the repository root, forward slashes."),
+          action: z.enum(FILE_ACTIONS),
+          before: z.string().optional().describe("The file at baseSha; omit for add."),
+          after: z.string().optional().describe("The new file; omit for delete."),
+        }),
+      )
+      .min(1)
+      .describe("Every file the change touches."),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  handler: async ({ client, baseUrl }, input) => {
+    const { submitFixRevision: revision } = await client.request(MCP_SUBMIT_FIX, {
+      incidentId: input.incidentId,
+      targetRepo: input.targetRepo,
+      baseSha: input.baseSha,
+      summary: input.summary,
+      files: input.files.map((file) => ({
+        path: file.path,
+        action: TO_FILE_ACTION[file.action],
+        beforeContent: file.before,
+        afterContent: file.after,
+      })),
+    });
+    return {
+      revision: { id: revision.id, number: revision.number },
+      pageUrl: incidentPageUrl({ baseUrl, incidentId: input.incidentId }),
+    };
   },
 });
 

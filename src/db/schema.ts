@@ -1,12 +1,14 @@
 // The tables of the RUM domain, declared once so Drizzle derives both the SQL
 // (through drizzle-kit migrations in ./drizzle) and the row types from them.
 // Four carry traffic (sites, sessions, pageviews, metric_events); three carry
-// operations (checks, incidents, incident_steps, from M12). All timestamps are
+// operations (checks, incidents, incident_steps, from M12); two carry proposed
+// fixes (fix_revisions, fix_revision_files, from M14). All timestamps are
 // integer milliseconds since the Unix epoch, UTC.
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { type AnySQLiteColumn, index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { CHECK_STATUSES } from "../checks/status";
 import type { IncidentEvidence } from "../incidents/evidence";
+import { FILE_ACTIONS, FIX_AUTHORS } from "../incidents/fix";
 import {
   INCIDENT_SOURCES,
   INCIDENT_STATUSES,
@@ -137,6 +139,12 @@ export const incidents = sqliteTable(
     evidence: text("evidence", { mode: "json" }).$type<IncidentEvidence>().notNull(),
     /** The human's note when approving or dismissing. */
     note: text("note"),
+    /**
+     * The fix revision a person approved, pinned so the change that ships is
+     * the one they read, not whatever an agent submits afterwards. Null when
+     * not approved, or approved with no proposed fix.
+     */
+    approvedRevisionId: integer("approved_revision_id").references((): AnySQLiteColumn => fixRevisions.id),
   },
   (table) => [
     index("incidents_site_detected_idx").on(table.siteId, table.detectedAt),
@@ -178,6 +186,54 @@ export const incidentSteps = sqliteTable(
   (table) => [index("incident_steps_incident_started_idx").on(table.incidentId, table.startedAt)],
 );
 
+/**
+ * One immutable version of the change proposed for an incident. An agent
+ * submits revision 1; every human edit writes the next number rather than
+ * changing a row, so the history shows who changed what and an approval can
+ * pin exactly the version a person read.
+ */
+export const fixRevisions = sqliteTable(
+  "fix_revisions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    incidentId: integer("incident_id")
+      .notNull()
+      .references(() => incidents.id),
+    /** 1-based per incident, in the order revisions were written. */
+    number: integer("number").notNull(),
+    author: text("author", { enum: FIX_AUTHORS }).notNull(),
+    createdAt: integer("created_at").notNull(),
+    /** "owner/name" of the repository the change applies to. */
+    targetRepo: text("target_repo").notNull(),
+    /** The commit the before contents were read at; a patch only applies against its base. */
+    baseSha: text("base_sha").notNull(),
+    summary: text("summary").notNull(),
+  },
+  (table) => [uniqueIndex("fix_revisions_incident_number_idx").on(table.incidentId, table.number)],
+);
+
+/**
+ * One file a revision touches, stored as whole before and after contents; the
+ * unified diff is derived from them on read (src/incidents/diff.ts).
+ */
+export const fixRevisionFiles = sqliteTable(
+  "fix_revision_files",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    revisionId: integer("revision_id")
+      .notNull()
+      .references(() => fixRevisions.id),
+    /** Relative to the repository root, forward slashes, no "..". */
+    path: text("path").notNull(),
+    action: text("action", { enum: FILE_ACTIONS }).notNull(),
+    /** Null for an added file. */
+    beforeContent: text("before_content"),
+    /** Null for a deleted file. */
+    afterContent: text("after_content"),
+  },
+  (table) => [uniqueIndex("fix_revision_files_revision_path_idx").on(table.revisionId, table.path)],
+);
+
 export type SiteRow = typeof sites.$inferSelect;
 export type CheckRow = typeof checks.$inferSelect;
 export type CheckInsert = typeof checks.$inferInsert;
@@ -185,6 +241,8 @@ export type IncidentRow = typeof incidents.$inferSelect;
 export type IncidentInsert = typeof incidents.$inferInsert;
 export type IncidentStepRow = typeof incidentSteps.$inferSelect;
 export type IncidentStepInsert = typeof incidentSteps.$inferInsert;
+export type FixRevisionRow = typeof fixRevisions.$inferSelect;
+export type FixRevisionFileRow = typeof fixRevisionFiles.$inferSelect;
 export type SessionInsert = typeof sessions.$inferInsert;
 export type PageviewInsert = typeof pageviews.$inferInsert;
 export type MetricEventInsert = typeof metricEvents.$inferInsert;

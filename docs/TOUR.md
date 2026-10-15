@@ -4,8 +4,8 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M9, M12, and M13 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
-Plan amended 2026-10-14: M12 to M15 add incidents, health checks, the MCP boundary, an in-dashboard editor for the agent's proposed fix, and the triage worker; M12 and M13 are built, M14 and M15 are next, see PLAN.md.
+Current state: **M9, M12, M13, and M14 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
+Plan amended 2026-10-14: M12 to M15 add incidents, health checks, the MCP boundary, an in-dashboard editor for the agent's proposed fix, and the triage worker; M12 to M14 are built, M15 (the triage worker) is next, see PLAN.md.
 Data model, migrations, seeds, ingest endpoint, analytics API, schema snapshot, typed documents, dashboard UI with Storybook, server-rendered first paint, bundle budget, virtualised sessions table, axe and keyboard e2e, and demo mode are in place.
 
 ## The one-paragraph version
@@ -15,6 +15,7 @@ A small browser library (coming in M3, Lakhte-built) captures Core Web Vitals an
 A Next.js app stores them in SQLite through Drizzle, exposes them through a Pothos-built GraphQL schema served by Yoga at `/api/graphql`, and renders a dashboard with Apollo Client.
 Since M12 any application can also push health checks to `/api/checks`; a deterministic detector turns vitals regressions and failing checks into incidents, and a person approves or dismisses them on the incident page, the human gate the triage agents (M15) will stop at.
 Since M13 agents reach incidents through an MCP server in `services/vitals-mcp`, which calls the same GraphQL API with a service token; the dashboard itself still never calls a model.
+Since M14 an agent's proposed change is shown on the incident page as a diff; a person can edit it in a lazily loaded CodeMirror editor, which writes a new revision, and approval pins the exact revision.
 
 ## Directory map
 
@@ -42,7 +43,8 @@ Since M13 agents reach incidents through an MCP server in `services/vitals-mcp`,
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler, demo rate limiter + tests
 │   ├── auth/                 bearer-token parsing and constant-time comparison, shared by /api/checks and the service token
 │   ├── checks/               health checks: status vocabulary, zod payload, persistence, write-key HTTP handler, the HTTP probe + tests
-│   ├── incidents/            vocabulary (statuses, transitions, roles), evidence shapes, the pure detector, detectIncidents + tests
+│   ├── incidents/            vocabulary (statuses, transitions, roles), evidence shapes, the pure detector, detectIncidents, fix revision rules, unified diffs + tests
+│   ├── demo/                 the flag-gated regression (VITALS_DEMO_REGRESSION=1) the seeded proposed fix targets
 │   ├── config/               demo-mode flag
 │   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels, adapters, dates, incidents (labels + evidence text)
 │   │   └── components/DashboardView.tsx   "use client": site + filter state, useQuery on change only
@@ -50,7 +52,7 @@ Since M13 agents reach incidents through an MCP server in `services/vitals-mcp`,
 │   └── db/
 │       ├── schema.ts         seven tables: sites, sessions, pageviews, metric_events + checks, incidents, incident_steps
 │       ├── index.ts          open SQLite, run migrations, makeDb / getDb
-│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions, checks, incidents, steps, breakdown
+│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions, checks, incidents, steps, breakdown, fix revisions
 │       ├── query-counter.ts  counts statements; behind every README query number
 │       ├── synthetic/        deterministic fake-traffic generator, the /pricing regression fixture, the health-check fixture
 │       └── seed.ts           idempotent demo seed + stress seed (CLI: scripts/seed-db.ts)
@@ -58,7 +60,7 @@ Since M13 agents reach incidents through an MCP server in `services/vitals-mcp`,
 ├── .mcp.json                 registers that server with Claude Code (token from your environment)
 ├── drizzle/                  generated migrations + snapshots (npm run db:generate)
 ├── scripts/                  seed-db.ts, detect-incidents.ts, check-probe.ts, measure-query-count.ts, print-schema.ts, check-bundle-budget.ts, measure-render.ts
-├── bundle-budget.json        committed First Load JS baseline for "/" (CI fails above +10%)
+├── bundle-budget.json        committed First Load JS baseline per route ("/", "/incidents/[id]"; CI fails above +10%)
 ├── .storybook/               Storybook 10: nextjs-vite framework, a11y + vitest addons
 ├── schema.graphql            the schema snapshot; a test and CI fail if it drifts from src/graphql
 ├── codegen.ts                GraphQL Codegen config (npm run codegen)
@@ -165,6 +167,7 @@ npm run check:bundle     # after npm run build: First Load JS vs the committed b
 - [10 - Deploy and demo mode](learning/10-deploy-and-demo-mode.md): the hosting decision, what demo mode isolates, what real hosting would change.
 - [12 - Incidents and health checks](learning/12-incidents-and-health-checks.md): detection as statistics, the incident state machine, push-first checks and the write key, the first detail route.
 - [13 - Agent connection](learning/13-agent-connection.md): MCP from first principles, thin tools over GraphQL, service tokens, the health probe, the breakdown.
+- [14 - Fix review](learning/14-fix-review.md): a change as base SHA plus contents, diff algorithms, CodeMirror 6, lazy loading under a route budget, immutable revisions.
 - [99 - Use this repo as a template](learning/99-use-as-template.md): keep/replace lists and the order to replace things in (draft, refreshed at M11).
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
@@ -176,4 +179,5 @@ npm run check:bundle     # after npm run build: First Load JS vs the committed b
 | `VITALS_DEMO_MODE` | unset | `1` = temp-dir database seeded on open, GraphiQL off, collect rate-limited, banner shown |
 | `VITALS_SERVICE_TOKEN` | unset | the secret agents present as a bearer token; `recordStep` and `transitionIncident` refuse every call while it is unset; the MCP server sends it |
 | `VITALS_URL` | `http://localhost:3000` | where the MCP server and `npm run checks:probe` find the dashboard |
+| `VITALS_DEMO_REGRESSION` | unset | `1` = the overview waits 1.5 s on a simulated upstream (the planted cause behind the seeded proposed fix) |
 | `VITALS_WRITE_KEY` | unset | the site's write key `npm run checks:probe` pushes with (the seed's demo key is `demo-write-key`) |
