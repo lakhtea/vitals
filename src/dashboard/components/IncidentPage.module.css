@@ -19,13 +19,10 @@
   color: var(--foreground);
 }
 
+/* A heading over the form's own card, like the Evidence and Timeline sections above it; no second frame. */
 .gate {
   display: grid;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
+  gap: 0.5rem;
 }
 
 .gateTitle {
