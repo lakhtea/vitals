@@ -1,6 +1,7 @@
 // FixReview as a reviewer meets it: the agent's first revision, a revision a
 // person edited (with the badge and the history), a closed incident that can no
 // longer be edited, a fix touching several files, and the keyboard edit flow.
+import { EditorView } from "@codemirror/view";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { FixReview, type FixFileData, type FixRevisionData, type FixRevisionSummary } from "./FixReview";
@@ -223,8 +224,13 @@ export const SaveEdit: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Edit src/demo/slow-upstream.ts" }));
     const editor = await canvas.findByRole("textbox", { name: "Edit src/demo/slow-upstream.ts" }, { timeout: 5000 });
-    await userEvent.click(editor);
-    await userEvent.keyboard("// reviewed");
+    // Typing is the CodeEditor story's job. Here the edit goes through CodeMirror's own API: synthetic
+    // keystrokes race its asynchronous selection sync, and on a slow CI runner they landed out of order.
+    const view = EditorView.findFromDOM(editor.closest<HTMLElement>(".cm-editor") ?? editor);
+    if (view === null) {
+      throw new Error("No CodeMirror view behind the editor");
+    }
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "// reviewed\n" } });
     await userEvent.type(canvas.getByLabelText("Why you changed it (optional)"), "  Marked as reviewed.  ");
     await userEvent.click(canvas.getByRole("button", { name: "Save as new revision" }));
     await expect(args.onSave).toHaveBeenCalledWith({

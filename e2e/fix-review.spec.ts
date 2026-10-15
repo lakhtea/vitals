@@ -1,54 +1,18 @@
 // The fix review at the human gate, end to end: an agent (holding the service
 // token) proposes a change on an incident of this test's own making, a person
 // edits 5_000 to 10_000 in the browser's editor, saves it as revision 2, and
-// approves by keyboard, which pins that revision. The incident is opened
-// through the public checks endpoint so no other spec shares it.
-import { expect, test, type APIRequestContext } from "@playwright/test";
+// approves by keyboard, which pins that revision. The incident is the spec's
+// own (e2e/api.ts), unique per attempt, so neither another spec nor a retry shares it.
+import { expect, test } from "@playwright/test";
+import { graphql, openOwnIncident } from "./api";
 import { expectNoGatedViolations } from "./axe";
 import { tabUntilFocused } from "./keyboard-helpers";
 import { E2E_SERVICE_TOKEN } from "./service-token";
 
-const DEMO_WRITE_KEY = "demo-write-key";
-const CHECK_ID = "e2e-fix-review";
 const FILE_PATH = "src/example.ts";
 
-const graphql = async ({
-  request,
-  query,
-  variables,
-  token,
-}: {
-  request: APIRequestContext;
-  query: string;
-  variables?: Record<string, unknown>;
-  token?: string;
-}): Promise<{ data?: Record<string, unknown>; errors?: Array<{ message: string }> }> => {
-  const response = await request.post("/api/graphql", {
-    headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
-    data: { query, variables },
-  });
-  return response.json();
-};
-
-const openOwnIncident = async (request: APIRequestContext): Promise<string> => {
-  const pushed = await request.post("/api/checks", {
-    headers: { authorization: `Bearer ${DEMO_WRITE_KEY}` },
-    data: { siteId: "demo", checks: [{ id: CHECK_ID, name: "E2E fix review", status: "failing", observedAt: Date.now(), detail: "opened by e2e" }] },
-  });
-  expect(pushed.status()).toBe(202);
-  expect((await graphql({ request, query: `mutation { detectIncidents(siteId: "demo") { opened } }` })).errors).toBeUndefined();
-  const listed = await graphql({ request, query: `{ site(id: "demo") { incidents(status: OPEN) { id subject } } }` });
-  const incident = (listed.data?.site as { incidents: Array<{ id: string; subject: string }> }).incidents.find(
-    (candidate) => candidate.subject === CHECK_ID,
-  );
-  if (incident === undefined) {
-    throw new Error("the e2e check did not open an incident");
-  }
-  return incident.id;
-};
-
 test("a person edits the agent's proposed change, saves it as a new revision, and approves that revision", async ({ page, request }) => {
-  const incidentId = await openOwnIncident(request);
+  const { id: incidentId } = await openOwnIncident({ request, label: "fix-review" });
   const submitted = await graphql({
     request,
     token: E2E_SERVICE_TOKEN,
