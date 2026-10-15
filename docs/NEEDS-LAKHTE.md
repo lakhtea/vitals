@@ -47,10 +47,10 @@ Steps for you:
 6. **Custom domain** (optional), then paste the live URL at the top of README.md.
 7. **If you ever want persistence** instead of a demo: libSQL/Turso keeps Drizzle and the schema; the driver swap makes every query `await`. Not planned for v1.
 
-## M12 to M14: incidents, the MCP boundary, and the triage worker (added 2026-10-14)
+## M12 to M15: incidents, the MCP boundary, the fix review editor, and the triage worker (added 2026-10-14)
 
-Nothing in M12 or M13 needs your accounts.
-M14 does:
+Nothing in M12 to M14 needs your accounts.
+M15 does:
 
 - **Anthropic API key** for live runs of the worker (`ant auth login`, or `ANTHROPIC_API_KEY` in the worker's env).
   CI and the Vercel demo use recorded fixtures and need no key.
@@ -89,3 +89,4 @@ M14 does:
 - 2026-10-07: M3 brief is ready; the `vitals-dashboard` site is seeded so dogfooding works as soon as the library does.
 - 2026-10-07 (late): M10 decision made and demo-mode code built; the Vercel steps above are concrete. M11 build-story draft added for sign-off; repo description and topics suggested.
 - 2026-10-14: plan amended for the two tiers; M12 to M14 section added with the worker's key, token, ECS, and persistence notes; repo description and topics updated.
+- 2026-10-14 (later): the fix review editor is M14 and the triage worker is M15; section renamed, nothing new needed from you.

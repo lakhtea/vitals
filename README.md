@@ -241,7 +241,7 @@ from `src/app/apollo/rsc-client.ts` for per-section streaming where a
 fallback is acceptable.
 
 ### Agents outside the app: a triage worker, not model calls in Next.js
-Decided 2026-10-14, before M12 to M14 are built.
+Decided 2026-10-14, before M12 to M15 are built.
 The triage agents need minutes per incident, a shell and git for the fix step, and a key that must not sit behind a public demo URL.
 Options: model calls inside Next.js route handlers (serverless timeouts, the key behind the demo, no repo access); a worker container we own on the Claude Agent SDK; Managed Agents (Anthropic hosts the loop and a sandbox); GitHub Actions as the runtime (native repo access, but coupled to GitHub).
 Choice: the worker container, `services/triage-worker`, with ECS as the hosting target and `docker compose` locally.
@@ -358,9 +358,9 @@ The database lives at `.data/vitals.db` (override with `VITALS_DB_PATH`).
 Two tiers, amended 2026-10-14.
 
 **Tier one, the RUM kit (built, M1 to M10):** Core Web Vitals (LCP, CLS, INP, TTFB, FCP) by page, device class, and connection; a session view; percentile aggregates (p75 first, per web.dev thresholds).
-**Planned for M12 and M13:** health checks any application can push, deterministic incident detection, and a human approve/dismiss gate, so the dashboard is the one place an on-call engineer looks.
+**Planned for M12 to M14:** health checks any application can push, deterministic incident detection, a human approve/dismiss gate, and a review surface where the proposed change is shown as a diff and can be edited in place before approval, so the dashboard is the one place an on-call engineer looks.
 
-**Tier two, the triage agents (planned, M14):** four single-responsibility agents (summarize, propose a fix, review, open the PR) running as a separate worker container that reads incidents over MCP and writes each step back as evidence.
+**Tier two, the triage agents (planned, M15):** four single-responsibility agents (summarize, propose a fix, review, open the PR) running as a separate worker container that reads incidents over MCP and writes each step back as evidence.
 The dashboard never calls a model, and no agent action leaves the repo before a human approves.
 
 **Deliberately excluded:** error tracking, session replay, paging and notification channels (detection yes, paging no), multi-tenant auth, AI features inside the dashboard itself, sampling strategies beyond a simple rate.
@@ -375,4 +375,4 @@ The dashboard never calls a model, and no agent action leaves the repo before a 
 ## Roadmap
 
 See [PLAN.md](./PLAN.md) — the working milestone plan this repo is built from.
-Next up: M12 incidents and health checks, M13 the MCP boundary, M14 the triage worker, then M11 public polish.
+Next up: M12 incidents and health checks, M13 the MCP boundary, M14 the fix review editor, M15 the triage worker, then M11 public polish.

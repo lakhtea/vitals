@@ -32,6 +32,7 @@ read it, because one will.
 Amended 2026-10-14: the product has two tiers.
 Tier one is the RUM kit above, extended with health checks that any application can push and with deterministic incident detection, so the dashboard is the on-call engineer's single human-facing view.
 Tier two, optional to deploy, is a set of on-call triage agents: four single-responsibility agents (summarize, propose a fix, review, open the PR) that read incidents from the dashboard, write every step back as evidence, and stop at a mandatory human gate before anything leaves the repo.
+At that gate the reviewer sees the proposed change as a diff and can make small edits in the dashboard before approving; it edits only what the agent proposed and is not a code editor for the repo.
 The dashboard is for humans; the agents are external workers, and the Next.js app never calls a model.
 This is the public counterpart of an on-call triage pipeline Lakhte built at a previous job (code not public), and it adds to the skill list above: multi-agent orchestration with explicit human gates, tool design over MCP, evals before autonomy, and containerised deployment.
 
@@ -106,7 +107,7 @@ not — replacing it is M1.
 - DB: SQLite via better-sqlite3 + Drizzle ORM (`:memory:` in unit tests)
 - Library build (M3): tsup or equivalent producing ESM + CJS + d.ts; `web-vitals` as its only runtime dependency (log the decision if that changes)
 - Tests: Vitest (unit), Playwright (e2e), GitHub Actions CI (`.github/workflows/ci.yml`)
-- Tier two (M13, M14): `@modelcontextprotocol/sdk` for the MCP server, `@anthropic-ai/claude-agent-sdk` for the triage worker, Docker for the worker image. Neither is a dependency of the Next.js app; the app talks to agents only through GraphQL.
+- Tier two (M13 to M15): `@modelcontextprotocol/sdk` for the MCP server, `@anthropic-ai/claude-agent-sdk` for the triage worker, Docker for the worker image; none of these is a dependency of the Next.js app, which talks to agents only through GraphQL. The fix review editor (M14) adds CodeMirror 6 (`@codemirror/*`) and the `diff` package to the app, loaded only on the incident route.
 
 ## Hard guardrails
 
@@ -250,7 +251,7 @@ frameworks).
 
 ### M12 - Incidents and health checks (tier one: the human on-call view)
 Scope amended 2026-10-14.
-The dashboard becomes the single human-facing record of what is wrong: vitals regressions and failing health checks open incidents, a human approves or dismisses them, and from M14 each agent's work appears on the same page.
+The dashboard becomes the single human-facing record of what is wrong: vitals regressions and failing health checks open incidents, a human approves or dismisses them, and from M15 each agent's work appears on the same page.
 - [ ] Decision entries BEFORE building: deterministic detection (baseline window vs current window, minimum sample counts, web.dev band changes) over anomaly models; health checks pushed by the application (one pull adapter follows in M13) over per-app pull connectors; a per-site write key for `/api/checks` while `/api/collect` stays open for browsers
 - [ ] Drizzle schema + migrations: `checks` (site, check id, name, status OK|DEGRADED|FAILING, value, unit, observed_at, detail); `incidents` (site, source WEB_VITALS|HEALTH_CHECK, path or check id, metric, detected_at, resolved_at, evidence: baseline p75, current p75, sample counts, or status before/after; status OPEN|TRIAGED|FIX_PROPOSED|REVIEWED|AWAITING_HUMAN|APPROVED|DISMISSED|RESOLVED; note); `incident_steps` (incident, role SUMMARIZE|PROPOSE_FIX|REVIEW|OPEN_PR|HUMAN, status, started_at, finished_at, summary, detail, model, input and output tokens, cost, link)
 - [ ] `POST /api/checks`: any application pushes a batch of check results; Zod-validated with typed errors, idempotent on (site, check id, observed_at), rejected without the site's write key, batch cap documented like collect
@@ -275,19 +276,34 @@ Nothing here calls a model.
 - [ ] Chapter 13: what MCP is (protocol, transports, tools vs resources), why the tools are thin over GraphQL, service tokens vs user auth, why the app still never calls a model
 - DoD: from Claude Code with the committed `.mcp.json`, `list_open_incidents` returns the seeded regression and `record_step` appears on its detail page; green tree including e2e.
 
-### M14 - Triage worker (tier two: the four agents)
+### M14 - Fix review: see and edit the proposed change
+The human gate is not a yes/no button.
+The reviewer sees the agent's proposed change as a diff and can make small edits in place before approving (a timeout from five seconds to ten, a message, a threshold) without leaving the dashboard.
+It edits only what the agent proposed; it is not a code editor for the repo.
+- [ ] Decision entries BEFORE building: the proposed change stored as a base commit SHA plus per-file before and after contents, with the diff derived, over a hand-edited unified diff; CodeMirror 6 over Monaco (size, modularity, keyboard accessibility) and over a plain textarea, loaded only on the incident route; revisions immutable, so every human edit is a new revision and a HUMAN step
+- [ ] Drizzle schema + migrations: `fix_revisions` (incident, number, author AGENT|HUMAN, created_at, target repo, base_sha, summary) and `fix_revision_files` (revision, path, action ADD|MODIFY|DELETE, before_content, after_content); documented caps on file size and file count per revision, enforced in validation
+- [ ] GraphQL: `Incident.fixRevisions`, `FixRevision.files`, `FixRevision.diff` (server-computed unified diff via the `diff` package); mutations `submitFixRevision(incidentId, baseSha, summary, files)` (service token; the worker's path in M15) and `editFixRevision(revisionId, files, note)` (human; writes a new HUMAN revision and a HUMAN step); `approveIncident` now pins a `revisionId`; schema snapshot and codegen updated
+- [ ] MCP: `submit_fix` tool added to `services/vitals-mcp`, typed like the rest
+- [ ] A committed, flag-gated regression: `VITALS_DEMO_REGRESSION=1` makes the overview await a simulated slow upstream call with no timeout, so TTFB and LCP worsen for real; the seed adds an AGENT revision that wraps that call in a `5_000` ms timeout with a fallback. This is what the editor demo edits until the M15 worker produces revisions for real, and what the M15 fix agent has to find
+- [ ] UI on `/incidents/[id]`: a "Proposed change" panel with the file list and a read-only unified diff per file, server-rendered so it is in the no-JS HTML; an Edit action opens that file's after-content in CodeMirror 6 (highlighting for TS, JS, CSS, JSON, Markdown) loaded with `next/dynamic` on this route only; Save writes a new revision, the diff re-renders, and the revision history shows who changed what; an "edited since last review" badge until a REVIEW step covers the latest revision; stories for the panel (one file, many files, add and delete, oversized file, edited badge)
+- [ ] Bundle budget: the "/" baseline must not move; a second baseline for the incident route is recorded and checked in CI under the same +10% rule, with the editor's cost stated in the README metrics table
+- [ ] Accessibility: the editor is reachable and operable by keyboard (CodeMirror's own bindings), focus returns to the file list on save or cancel, axe on the detail view with the editor open
+- [ ] Tests per TESTING_RULES: revision creation (agent submit, human edit makes a new revision and a HUMAN step, caps enforced, base SHA required); diff rendering for add, modify, delete; approve pins a revision and rejects one from another incident; e2e: on the seeded incident, change `5_000` to `10_000` in the editor, save, see the diff update, approve by keyboard
+- [ ] Chapter 14: how a change is represented (base SHA plus contents vs a unified diff, and why a git patch needs a base), what a diff algorithm does, how CodeMirror 6's state and view model works, why the editor is lazy-loaded and how the bundle budget sees it, why revisions are immutable
+- DoD: on the seeded incident a human changes the timeout in the browser, the diff updates, approving pins that revision; keyboard-only works; the "/" budget is unchanged and the incident-route budget recorded; chapter 14, TOUR, and glossary done; green tree including e2e.
+
+### M15 - Triage worker (tier two: the four agents)
 The showpiece of tier two: four single-responsibility agents that take an incident from OPEN to AWAITING_HUMAN, and open the PR only after a human approves.
 Runs anywhere a container runs; ECS is the target.
 - [ ] Decision entries BEFORE building: the worker on the Claude Agent SDK over the Anthropic SDK tool runner and over Managed Agents (the tool layer stays harness-neutral so Managed Agents remains a swap); polling the dashboard over webhooks for v1; four narrow agents over one
-- [ ] `services/triage-worker`: own package.json; four agent definitions (`agents/summarize.md`, `propose-fix.md`, `review.md`, `open-pr.md`), each a prompt plus an allowed-tool list: summarize gets only the dashboard MCP tools; propose-fix adds read, edit, and shell inside a fresh clone of the target repo; review gets read, search, and shell to run the tests; open-pr gets shell with `gh`. A runner polls open incidents, runs the pipeline one incident at a time, records every step through MCP, stops at AWAITING_HUMAN, and resumes APPROVED incidents to open the PR
+- [ ] `services/triage-worker`: own package.json; four agent definitions (`agents/summarize.md`, `propose-fix.md`, `review.md`, `open-pr.md`), each a prompt plus an allowed-tool list: summarize gets only the dashboard MCP tools; propose-fix adds read, edit, and shell inside a fresh clone of the target repo; review gets read, search, and shell to run the tests; open-pr gets shell with `gh`. A runner polls open incidents, runs the pipeline one incident at a time, records every step through MCP, submits the proposed change as a fix revision through `submit_fix`, stops at AWAITING_HUMAN, and resumes APPROVED incidents to open the PR from the approved revision; a HUMAN revision with no REVIEW step is re-reviewed (tests run) first, and a failure returns the incident to AWAITING_HUMAN with the failure recorded
 - [ ] Run-away guards: per-incident token and cost budget, max turns per agent, one incident per worker at a time, idempotent resume (a restarted worker reads the recorded steps and continues from the last finished one), every failure recorded as a step
-- [ ] A committed, flag-gated regression (`VITALS_DEMO_REGRESSION=1` injects a render-blocking resource into the dashboard) so the fix agent has a real cause to find in this repo; the seeded vitals incident points at it
 - [ ] Container: `Dockerfile`, `compose.yaml` running dashboard + worker locally, an ECS task definition and a short runbook; secrets only through env (`ANTHROPIC_API_KEY`, `VITALS_SERVICE_TOKEN`, `GH_TOKEN`)
-- [ ] Recorded run: run the pipeline once for real against the seeded incident and commit the resulting steps as a fixture the demo seed loads, labelled "recorded run" in the UI, with the method documented; the Vercel demo shows this because the worker does not deploy there
+- [ ] Recorded run: run the pipeline once for real against the seeded incident and commit the resulting steps and fix revision as a fixture the demo seed loads, labelled "recorded run" in the UI, with the method documented; the Vercel demo shows this because the worker does not deploy there
 - [ ] Evals before autonomy: a golden set of seeded incidents (a true regression, noise under the minimum samples, a failing check, a flapping check) with expected summarizer classifications and reviewer verdicts; `npm run eval:triage` scores them; CI runs the eval against recorded fixtures without a key, live mode by hand; results table in README
 - [ ] Observability: per-step model, tokens, cost, and latency in `incident_steps`; the README metrics table gains measured cost and wall time per incident
 - [ ] Chapter 14: why four narrow agents instead of one, where the human gate sits and why, how the loop is stopped from running away, how to eval a trajectory rather than a final answer, what would change under Managed Agents; written as the interview answers
-- DoD: `docker compose up` runs dashboard + worker locally; the seeded regression goes OPEN to AWAITING_HUMAN with four recorded steps; approving in the UI makes the worker open a PR against a repo Lakhte designates (or write the branch and patch locally until there is a remote); evals green in CI; chapter 14, TOUR, and glossary done.
+- DoD: `docker compose up` runs dashboard + worker locally; the seeded regression goes OPEN to AWAITING_HUMAN with four recorded steps; approving in the UI makes the worker open a PR from the approved revision, edited or not, against a repo Lakhte designates (or write the branch and patch locally until there is a remote); evals green in CI; chapter 14, TOUR, and glossary done.
 
 ### M11 — Public polish (last)
 - [ ] README final pass: architecture diagram accurate (both tiers, the worker, and the MCP boundary), every Decisions entry present, metrics tables complete, no TBDs left
@@ -328,7 +344,7 @@ The canonical, always-current list is `docs/NEEDS-LAKHTE.md`. Summary:
 - M10 hosting account (Vercel or similar) when M10 starts.
 - M11 GitHub repo creation + push, npm publish of the library, and sign-off
   on the README build-story framing (Lakhte's accounts and voice).
-- M14 triage worker: an Anthropic API key for live runs (recorded fixtures
+- M15 triage worker: an Anthropic API key for live runs (recorded fixtures
   cover CI), a GitHub token and a target repo for the PR agent (after M11's
   push), and an AWS account with ECS when the worker is hosted; `docker
   compose` covers local runs.
@@ -483,3 +499,13 @@ decisions logged, anything blocked.
   stays this repo. Guardrail 1 rewritten, tiers added to "What this project
   is", M12 to M14 inserted before M11, README scope and two decision entries,
   NEEDS-LAKHTE M12 to M14 section. Docs only, no feature code. Green tree.
+- 2026-10-14 ~23:15 ET — Lakhte added, knowing it is heavy, an in-dashboard
+  editor at the human gate: the reviewer sees the agent's proposed change as
+  a diff and makes small edits in place (a timeout from five seconds to ten)
+  before approving; scoped to what the agent proposed, not a repo editor. It
+  becomes M14 (fix revisions as base SHA plus file contents, derived diffs,
+  CodeMirror 6 lazy-loaded on the incident route, immutable revisions, its own
+  bundle baseline). The worker moves to M15 and now submits revisions through
+  `submit_fix`, opens the PR from the approved revision, and re-reviews a
+  human-edited revision before the PR. The flag-gated demo regression moved
+  to M14 so the seeded proposed fix has a real cause. Docs only. Green tree.
