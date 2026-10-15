@@ -7,7 +7,8 @@ import { schema } from "@/graphql/schema";
 
 const yoga = createYoga({
   schema,
-  context: createContext,
+  // The request goes on to the context so it can recognise the agents' service token.
+  context: ({ request }) => createContext({ request }),
   graphqlEndpoint: "/api/graphql",
   // The public demo keeps POST open for the dashboard but hides the GraphiQL
   // page: an interactive console on a public URL invites ad hoc load.

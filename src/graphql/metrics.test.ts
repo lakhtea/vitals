@@ -11,7 +11,7 @@ import type { Context } from "./context";
 import { schema } from "./schema";
 
 const exec = (db: Db, source: string, variableValues?: Record<string, unknown>) => {
-  const contextValue: Context = { db };
+  const contextValue: Context = { db, isService: false };
   return graphql({ schema, source, contextValue, variableValues });
 };
 

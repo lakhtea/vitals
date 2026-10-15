@@ -25,6 +25,15 @@
   gap: 0.5rem;
 }
 
+/* Says the pipeline is waiting on a person; text carries the meaning, the colour only draws the eye. */
+.callout {
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--rating-needs-improvement);
+  background: color-mix(in srgb, var(--rating-needs-improvement) 8%, transparent);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
 .gateTitle {
   font-size: 1.05rem;
   font-weight: 600;

@@ -1,6 +1,7 @@
 // E2E harness: boots a freshly seeded app on its own database file so browser
 // tests never depend on, or disturb, local dev data.
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_SERVICE_TOKEN } from "./e2e/service-token";
 
 const E2E_DB_PATH = ".data/e2e.db";
 // Delete the previous run's database (and SQLite's WAL sidecars) so the seed
@@ -27,7 +28,7 @@ export default defineConfig({
     command: `${resetE2eDb} && npm run db:seed && npm run incidents:detect && npm run dev`,
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    env: { VITALS_DB_PATH: E2E_DB_PATH },
+    env: { VITALS_DB_PATH: E2E_DB_PATH, VITALS_SERVICE_TOKEN: E2E_SERVICE_TOKEN },
     timeout: 120_000,
   },
 });

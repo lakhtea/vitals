@@ -18,7 +18,7 @@ let counter: QueryCounter;
 let db: Db;
 
 const exec = (source: string, variableValues?: Record<string, unknown>) => {
-  const contextValue: Context = { db };
+  const contextValue: Context = { db, isService: false };
   return graphql({ schema, source, contextValue, variableValues });
 };
 

@@ -4,8 +4,8 @@
 > Read top to bottom and you will know where everything lives and why.
 > For the deep version of any section, follow the link to its learning chapter.
 
-Current state: **M9 and M12 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
-Plan amended 2026-10-14: M12 to M15 add incidents, health checks, the MCP boundary, an in-dashboard editor for the agent's proposed fix, and the triage worker; M12 is built, M13 to M15 are next, see PLAN.md.
+Current state: **M9, M12, and M13 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
+Plan amended 2026-10-14: M12 to M15 add incidents, health checks, the MCP boundary, an in-dashboard editor for the agent's proposed fix, and the triage worker; M12 and M13 are built, M14 and M15 are next, see PLAN.md.
 Data model, migrations, seeds, ingest endpoint, analytics API, schema snapshot, typed documents, dashboard UI with Storybook, server-rendered first paint, bundle budget, virtualised sessions table, axe and keyboard e2e, and demo mode are in place.
 
 ## The one-paragraph version
@@ -14,6 +14,7 @@ Vitals is a self-hostable real-user-monitoring kit.
 A small browser library (coming in M3, Lakhte-built) captures Core Web Vitals and posts them to `/api/collect` (M2).
 A Next.js app stores them in SQLite through Drizzle, exposes them through a Pothos-built GraphQL schema served by Yoga at `/api/graphql`, and renders a dashboard with Apollo Client.
 Since M12 any application can also push health checks to `/api/checks`; a deterministic detector turns vitals regressions and failing checks into incidents, and a person approves or dismisses them on the incident page, the human gate the triage agents (M15) will stop at.
+Since M13 agents reach incidents through an MCP server in `services/vitals-mcp`, which calls the same GraphQL API with a service token; the dashboard itself still never calls a model.
 
 ## Directory map
 
@@ -39,7 +40,8 @@ Since M12 any application can also push health checks to `/api/checks`; a determ
 │   │   ├── generated/        GraphQL Codegen output: graphql() + TypedDocumentNodes (committed, never edited)
 │   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler, demo rate limiter + tests
-│   ├── checks/               health checks: status vocabulary, zod payload, persistence, write-key HTTP handler + tests
+│   ├── auth/                 bearer-token parsing and constant-time comparison, shared by /api/checks and the service token
+│   ├── checks/               health checks: status vocabulary, zod payload, persistence, write-key HTTP handler, the HTTP probe + tests
 │   ├── incidents/            vocabulary (statuses, transitions, roles), evidence shapes, the pure detector, detectIncidents + tests
 │   ├── config/               demo-mode flag
 │   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels, adapters, dates, incidents (labels + evidence text)
@@ -48,12 +50,14 @@ Since M12 any application can also push health checks to `/api/checks`; a determ
 │   └── db/
 │       ├── schema.ts         seven tables: sites, sessions, pageviews, metric_events + checks, incidents, incident_steps
 │       ├── index.ts          open SQLite, run migrations, makeDb / getDb
-│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions, checks, incidents
+│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions, checks, incidents, steps, breakdown
 │       ├── query-counter.ts  counts statements; behind every README query number
 │       ├── synthetic/        deterministic fake-traffic generator, the /pricing regression fixture, the health-check fixture
 │       └── seed.ts           idempotent demo seed + stress seed (CLI: scripts/seed-db.ts)
+├── services/vitals-mcp/      the MCP server agents connect to: GraphQL client, typed documents, four tools, stdio entry + protocol tests
+├── .mcp.json                 registers that server with Claude Code (token from your environment)
 ├── drizzle/                  generated migrations + snapshots (npm run db:generate)
-├── scripts/                  seed-db.ts, detect-incidents.ts, measure-query-count.ts, print-schema.ts, check-bundle-budget.ts, measure-render.ts
+├── scripts/                  seed-db.ts, detect-incidents.ts, check-probe.ts, measure-query-count.ts, print-schema.ts, check-bundle-budget.ts, measure-render.ts
 ├── bundle-budget.json        committed First Load JS baseline for "/" (CI fails above +10%)
 ├── .storybook/               Storybook 10: nextjs-vite framework, a11y + vitest addons
 ├── schema.graphql            the schema snapshot; a test and CI fail if it drifts from src/graphql
@@ -97,6 +101,11 @@ Chapter 12 explains the rules and the state machine.
 
 An application -> `POST /api/checks` with `Authorization: Bearer <write key>` -> `route.ts` -> `checks/handle.ts` (size, JSON, zod, site, key) -> `checks/ingest.ts` (conflict-ignoring insert on site + check id + observed time) -> `202 { inserted, duplicates }` -> the newest row per check is the health panel, the history is what the detector reads.
 
+## Follow an agent call
+
+An agent in Claude Code (or the M15 worker) -> `tools/call record_step` over stdio -> `services/vitals-mcp/server.ts` -> `tools.ts` validates the input with zod -> `client.ts` posts the typed `McpRecordStep` document to `/api/graphql` with `Authorization: Bearer <VITALS_SERVICE_TOKEN>` -> `createContext` marks the request as a service -> `recordStep` resolver (`requireService`, then `db/queries/steps.ts` in one transaction) -> the step is in `incident_steps` and on `/incidents/[id]`.
+No tool calls `approveIncident` or `dismissIncident`, and `transitionIncident` refuses any target outside the agent path; chapter 13 explains both.
+
 ## Follow a batched field
 
 `site { pages { metrics } }`: the `pages` resolver returns 10 pages -> graphql-js calls `Page.metrics` ten times in the same tick -> each call hands DataLoader a `(site, path, range)` key -> after the tick, DataLoader calls `batchLoadPageMetrics` once with all ten -> one window-function statement -> results handed back in key order.
@@ -118,7 +127,7 @@ All timestamps are epoch milliseconds.
 | ----- | -------- | ------------ | ------- |
 | Unit | `src/**/*.test.ts` | schema executed in-process, `:memory:` SQLite | `npm run test` |
 | Stories | `src/**/*.stories.tsx` | each story in headless Chromium: render, play function, axe | `npm run test:storybook` |
-| E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path, incidents: list, keyboard dismiss, axe) | real dev server + Chromium, `.data/e2e.db`, seeded and detected | `npm run test:e2e` |
+| E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path, incidents: list, keyboard dismiss, axe, an agent walking the gate with the service token) | real dev server + Chromium, `.data/e2e.db`, seeded and detected | `npm run test:e2e` |
 
 CI runs all three plus `typecheck`, `lint`, `codegen:check`, and the bundle budget.
 The rule for what deserves a test is in TESTING_RULES.md.
@@ -126,8 +135,8 @@ The rule for what deserves a test is in TESTING_RULES.md.
 ## When you change the schema
 
 1. Edit `src/graphql/**`.
-2. `npm run codegen` rewrites `schema.graphql` and `src/graphql/generated/`.
-3. Commit all three together; the snapshot test and `codegen:check` in CI enforce it.
+2. `npm run codegen` rewrites `schema.graphql`, `src/graphql/generated/` (the dashboard's documents), and `services/vitals-mcp/generated/` (the MCP tools' documents).
+3. Commit them together; the snapshot test and `codegen:check` in CI enforce it.
 
 ## Run it
 
@@ -135,6 +144,7 @@ The rule for what deserves a test is in TESTING_RULES.md.
 npm install
 npm run db:seed          # or npm run db:seed:stress for ~100k events
 npm run incidents:detect # open incidents for the seeded regression and the failing check
+npm run mcp:vitals       # the MCP server on stdio (Claude Code starts it from .mcp.json; needs VITALS_SERVICE_TOKEN)
 npm run dev              # http://localhost:3000, GraphiQL at /api/graphql
 npm run storybook        # http://localhost:6006
 npm run check:bundle     # after npm run build: First Load JS vs the committed baseline
@@ -154,6 +164,7 @@ npm run check:bundle     # after npm run build: First Load JS vs the committed b
 - [09 - Accessibility](learning/09-accessibility.md): what axe catches and cannot, the keyboard path, chart fallbacks.
 - [10 - Deploy and demo mode](learning/10-deploy-and-demo-mode.md): the hosting decision, what demo mode isolates, what real hosting would change.
 - [12 - Incidents and health checks](learning/12-incidents-and-health-checks.md): detection as statistics, the incident state machine, push-first checks and the write key, the first detail route.
+- [13 - Agent connection](learning/13-agent-connection.md): MCP from first principles, thin tools over GraphQL, service tokens, the health probe, the breakdown.
 - [99 - Use this repo as a template](learning/99-use-as-template.md): keep/replace lists and the order to replace things in (draft, refreshed at M11).
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 
@@ -163,3 +174,6 @@ npm run check:bundle     # after npm run build: First Load JS vs the committed b
 | -------- | ------- | ------- |
 | `VITALS_DB_PATH` | `.data/vitals.db` | app, seed, drizzle-kit; Playwright sets `.data/e2e.db` |
 | `VITALS_DEMO_MODE` | unset | `1` = temp-dir database seeded on open, GraphiQL off, collect rate-limited, banner shown |
+| `VITALS_SERVICE_TOKEN` | unset | the secret agents present as a bearer token; `recordStep` and `transitionIncident` refuse every call while it is unset; the MCP server sends it |
+| `VITALS_URL` | `http://localhost:3000` | where the MCP server and `npm run checks:probe` find the dashboard |
+| `VITALS_WRITE_KEY` | unset | the site's write key `npm run checks:probe` pushes with (the seed's demo key is `demo-write-key`) |

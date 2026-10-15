@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "vitals": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "services/vitals-mcp/main.ts"],
+      "env": {
+        "VITALS_URL": "${VITALS_URL:-http://localhost:3000}",
+        "VITALS_SERVICE_TOKEN": "${VITALS_SERVICE_TOKEN:-}"
+      }
+    }
+  }
+}

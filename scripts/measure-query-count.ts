@@ -32,7 +32,8 @@ const main = async (): Promise<void> => {
   const counter = createQueryCounter();
   const db = makeDb(":memory:", { logger: counter.logger });
   seed(db);
-  const contextValue: Context = { db };
+  // Read operations only, so never the service token.
+  const contextValue: Context = { db, isService: false };
 
   for (const operation of OPERATIONS) {
     counter.reset();

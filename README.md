@@ -81,6 +81,7 @@ that any client (Apollo today, RSC fetches in M7) infers from. Choice: typed
 documents, fragment masking off. Tradeoff: the generated module must be
 committed and regenerated (`npm run codegen`), which is why
 `codegen:check` runs in CI and a test pins `schema.graphql`.
+Since M13 there are two outputs, the dashboard's and the MCP server's: the preset bundles every document it was given into the module `graphql()` comes from, so sharing one output shipped the agents' operations to browsers (14,849 bytes, caught by the bundle check).
 
 ### SQLite + Drizzle
 Single-tenant, demo-scale collector → zero-ops local file DB, trivially
@@ -273,6 +274,21 @@ Choice: `sites.write_key`, presented as `Authorization: Bearer <key>` on `/api/c
 The seed gives the demo sites fixed keys so the loop can be driven locally without configuration.
 Tradeoff: one more thing to configure per site, and the key is a shared secret rather than a signature, which is enough for a self-hosted single-tenant tool and would be the first thing to revisit for multi-tenant hosting.
 
+### MCP tools as thin wrappers over the GraphQL schema
+Written before M13 was built.
+The triage agents need to read incidents and write their steps, and the dashboard already has an API for exactly that data.
+Options: a second, agent-shaped REST API; letting agents send arbitrary GraphQL; an MCP server whose few tools each call one or two fixed GraphQL operations.
+Choice: `services/vitals-mcp`, four tools (`list_open_incidents`, `get_incident_context`, `record_step`, `request_human_review`), each a typed GraphQL document from the same codegen as the dashboard.
+A tool is a contract a model reads: a narrow list with written descriptions is easier to use correctly than a whole schema, and it can never reach `approveIncident` or `dismissIncident`, because no tool calls them.
+Tradeoff: every new agent capability needs a tool as well as a field, and the tool layer has its own tests; that is the price of keeping the human gate out of an agent's reach by construction.
+
+### The MCP server talks HTTP with a service token; people stay unauthenticated in v1
+The MCP server runs beside the agents (in M15, a separate container), not inside Next.js, so it cannot share the in-process `SchemaLink` the pages use.
+Options: run the server in-process with the app; give it direct database access; call `/api/graphql` over HTTP with a credential.
+Choice: HTTP to `/api/graphql` with `Authorization: Bearer <VITALS_SERVICE_TOKEN>`; `recordStep` and `transitionIncident` require that token, and `transitionIncident` may only move an incident along the agent path (triaged, fix proposed, reviewed, awaiting human).
+Approve and dismiss stay open, as everything else does in this single-tenant tool.
+Tradeoff: anyone who can reach the dashboard can decide an incident, which is acceptable for a self-hosted tool on a private network and is the first thing multi-tenant auth would change; agents, which run unattended and spend money, are the ones that must prove who they are.
+
 ## Server/client boundary
 
 The overview is a Server Component tree with `"use client"` only at the
@@ -390,6 +406,19 @@ curl -s -X POST http://localhost:3000/api/checks \
 `status` is `ok`, `degraded`, or `failing`; `value`, `unit`, and `detail` are optional.
 The latest observation per check id is what the dashboard's health panel shows; the history is what the detector reads.
 
+## Connecting agents: MCP
+
+`services/vitals-mcp` is an MCP server with four tools: `list_open_incidents`, `get_incident_context`, `record_step`, and `request_human_review`.
+It calls this dashboard's GraphQL API with a service token and holds no model of its own; the agents live in whatever host connects.
+`.mcp.json` registers it for Claude Code in this repo:
+
+```bash
+export VITALS_SERVICE_TOKEN=local-dev-token   # the dashboard and the MCP server must share it
+npm run dev
+```
+
+No tool can approve or dismiss an incident, and the API refuses an agent's attempt to; see [chapter 13](./docs/learning/13-agent-connection.md).
+
 ## Development
 
 ```bash
@@ -412,7 +441,8 @@ The database lives at `.data/vitals.db` (override with `VITALS_DB_PATH`).
 Two tiers, amended 2026-10-14.
 
 **Tier one, the RUM kit (built, M1 to M10):** Core Web Vitals (LCP, CLS, INP, TTFB, FCP) by page, device class, and connection; a session view; percentile aggregates (p75 first, per web.dev thresholds).
-**Planned for M12 to M14:** health checks any application can push, deterministic incident detection, a human approve/dismiss gate, and a review surface where the proposed change is shown as a diff and can be edited in place before approval, so the dashboard is the one place an on-call engineer looks.
+**Built in M12 and M13:** health checks any application can push (or `npm run checks:probe` can collect), deterministic incident detection, a human approve/dismiss gate on each incident's page, and an MCP server that lets agents read incidents and record their steps.
+**Planned for M14:** a review surface where an agent's proposed change is shown as a diff and can be edited in place before approval.
 
 **Tier two, the triage agents (planned, M15):** four single-responsibility agents (summarize, propose a fix, review, open the PR) running as a separate worker container that reads incidents over MCP and writes each step back as evidence.
 The dashboard never calls a model, and no agent action leaves the repo before a human approves.

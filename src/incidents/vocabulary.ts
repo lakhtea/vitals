@@ -43,6 +43,26 @@ export const INCIDENT_TRANSITIONS: Record<IncidentStatus, readonly IncidentStatu
   resolved: [],
 };
 
+/**
+ * The statuses an agent may move an incident to, through the service-token
+ * `transitionIncident` mutation. Approving and dismissing belong to a person,
+ * opening and resolving to the detector; the transition table still decides
+ * whether a given move is legal from where the incident is now.
+ */
+export const AGENT_TRANSITION_TARGETS = [
+  "triaged",
+  "fix-proposed",
+  "reviewed",
+  "awaiting-human",
+] as const satisfies readonly IncidentStatus[];
+export type AgentTransitionTarget = (typeof AGENT_TRANSITION_TARGETS)[number];
+
+export const isAgentTransitionTarget = (status: IncidentStatus): status is AgentTransitionTarget =>
+  (AGENT_TRANSITION_TARGETS as readonly IncidentStatus[]).includes(status);
+
+export const isTerminalIncidentStatus = (status: IncidentStatus): boolean =>
+  (TERMINAL_INCIDENT_STATUSES as readonly IncidentStatus[]).includes(status);
+
 export const isTransitionAllowed = ({ from, to }: { from: IncidentStatus; to: IncidentStatus }): boolean =>
   INCIDENT_TRANSITIONS[from].includes(to);
 

@@ -267,13 +267,13 @@ The dashboard becomes the single human-facing record of what is wrong: vitals re
 The agents are external.
 This milestone is the boundary they cross: a service token for the mutations only agents call, and an MCP server whose tools are thin wrappers over the GraphQL schema.
 Nothing here calls a model.
-- [ ] Decision entries BEFORE building: MCP tools as 1:1 wrappers over GraphQL operations (over a second bespoke API); the MCP server talks to the dashboard over HTTP with a service token (over in-process SchemaLink) because the worker runs in another container; approve and dismiss stay unauthenticated in single-tenant v1 while agent mutations require the token
-- [ ] Service token: `VITALS_SERVICE_TOKEN`; `recordStep(incidentId, role, status, summary, detail, usage, link)` and `transitionIncident(id, to)` require `Authorization: Bearer`; a missing or wrong token is a typed GraphQL error; transitions validated by the M12 state machine
-- [ ] `services/vitals-mcp`: a stdio MCP server on `@modelcontextprotocol/sdk` exposing `list_open_incidents`, `get_incident_context` (evidence, breakdowns, a recent-sessions sample, check history, the human's notes), `record_step`, and `request_human_review`; inputs and outputs typed from the generated GraphQL documents; a committed `.mcp.json` so Claude Code in this repo can call the tools
-- [ ] HTTP health-probe adapter: `npm run checks:probe -- --site <id> --url <url>` fetches any `/healthz`-style endpoint and posts a check result through `/api/checks`; proves the checks API against an application we do not control
-- [ ] Incident detail renders each recorded step as evidence: what the agent saw, what it concluded, model, tokens, cost, latency, link; the human gate shows "awaiting your review" when the pipeline stops
-- [ ] Tests per TESTING_RULES: token enforcement (none, wrong, right), transition validation, each MCP tool's contract against a test server; e2e: a scripted agent records a step over MCP and the detail page shows it; the probe adapter against a local fixture endpoint
-- [ ] Chapter 13: what MCP is (protocol, transports, tools vs resources), why the tools are thin over GraphQL, service tokens vs user auth, why the app still never calls a model
+- [x] Decision entries BEFORE building: MCP tools as 1:1 wrappers over GraphQL operations (over a second bespoke API); the MCP server talks to the dashboard over HTTP with a service token (over in-process SchemaLink) because the worker runs in another container; approve and dismiss stay unauthenticated in single-tenant v1 while agent mutations require the token
+- [x] Service token: `VITALS_SERVICE_TOKEN`; `recordStep(incidentId, role, status, summary, detail, usage, link)` and `transitionIncident(id, to)` require `Authorization: Bearer`; a missing or wrong token is a typed GraphQL error; transitions validated by the M12 state machine
+- [x] `services/vitals-mcp`: a stdio MCP server on `@modelcontextprotocol/sdk` exposing `list_open_incidents`, `get_incident_context` (evidence, breakdowns, check history, the human's notes; the recent-sessions sample is deferred until M15 shows the summarizer needs it, because sessions have no path filter yet), `record_step`, and `request_human_review`; inputs and outputs typed from the generated GraphQL documents; a committed `.mcp.json` so Claude Code in this repo can call the tools
+- [x] HTTP health-probe adapter: `npm run checks:probe -- --site <id> --url <url>` fetches any `/healthz`-style endpoint and posts a check result through `/api/checks`; proves the checks API against an application we do not control
+- [x] Incident detail renders each recorded step as evidence: what the agent saw, what it concluded, model, tokens, cost, latency, link; the human gate shows "awaiting your review" when the pipeline stops
+- [x] Tests per TESTING_RULES: token enforcement (none, wrong, right), transition validation, each MCP tool's contract against a test server; e2e: a scripted agent records a step over MCP and the detail page shows it; the probe adapter against a local fixture endpoint
+- [x] Chapter 13: what MCP is (protocol, transports, tools vs resources), why the tools are thin over GraphQL, service tokens vs user auth, why the app still never calls a model
 - DoD: from Claude Code with the committed `.mcp.json`, `list_open_incidents` returns the seeded regression and `record_step` appears on its detail page; green tree including e2e.
 
 ### M14 - Fix review: see and edit the proposed change
@@ -535,3 +535,19 @@ decisions logged, anything blocked.
   unstable at tens of samples); the stress traffic now ends before the
   detector's windows and a per-metric floor is parked. The device and
   connection breakdown moved to M13. Final tree: see the commit.
+- 2026-10-15 00:00 to 00:15 ET - M13 complete. Two parallel agents (app
+  side: service token, recordStep / transitionIncident, Incident.breakdown;
+  MCP server: services/vitals-mcp on @modelcontextprotocol/sdk 1.32.1, four
+  tools, .mcp.json), plus the HTTP probe, the awaiting-review notice, docs,
+  and the e2e in the main session. Agents reach incidents only through four
+  tools; no tool calls approve or dismiss, and transitionIncident refuses
+  any target outside the agent path even with the token (both tested).
+  Verified: 121 unit tests (agent mutations, MCP protocol in-process, probe
+  against a real local HTTP server), 11 e2e (a scripted agent with the token
+  walks an incident to the gate and the page shows its step), the stdio
+  server run against a live HTTP Yoga by the MCP agent, and the probe CLI
+  against a dev server (ok, 404 failing, wrong key 401). Running the CLI
+  caught a CommonJS top-level-await crash the type checker missed; fixed.
+  Not verified here: loading .mcp.json inside Claude Code itself (listed in
+  NEEDS-LAKHTE). Deferred with a reason: the recent-sessions sample in
+  get_incident_context.

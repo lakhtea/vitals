@@ -1,14 +1,19 @@
 // Incident and what hangs off it: the evidence the detector stored (one of two
 // shapes, exposed as two nullable fields so a client branches on which one is
 // present rather than on a union), the steps timeline, and the DetectionResult
-// a detector run reports.
+// a detector run reports, and the per-device and per-connection breakdown of a
+// vitals incident's two windows.
+import { type BreakdownGroup, loadIncidentBreakdown } from "@/db/queries/breakdown";
 import { listStepsForIncident } from "@/db/queries/incidents";
 import type { IncidentRow, IncidentStepRow } from "@/db/schema";
 import type { DetectionResult } from "@/incidents/detect";
 import type { CheckEvidence, VitalsEvidence, WindowSummary } from "@/incidents/evidence";
 import { builder } from "../builder";
 import {
+  CONNECTION_TYPE_ENUM_VALUES,
   CheckStatusEnum,
+  DEVICE_CLASS_ENUM_VALUES,
+  enumNameOf,
   IncidentSourceEnum,
   IncidentStatusEnum,
   MetricNameEnum,
@@ -61,7 +66,7 @@ const CheckEvidenceType = builder.objectRef<CheckEvidence>("CheckEvidence").impl
   }),
 });
 
-const IncidentStepType = builder.objectRef<IncidentStepRow>("IncidentStep").implement({
+export const IncidentStepType = builder.objectRef<IncidentStepRow>("IncidentStep").implement({
   description: "One entry in an incident's timeline: an agent's work (from M15) or a human decision.",
   fields: (t) => ({
     id: t.exposeID("id"),
@@ -78,6 +83,46 @@ const IncidentStepType = builder.objectRef<IncidentStepRow>("IncidentStep").impl
     link: t.exposeString("link", { nullable: true, description: "A URL to follow: the PR, a trace, a commit." }),
   }),
 });
+
+interface BreakdownRow {
+  value: string;
+  baselineP75: number | null;
+  baselineSampleCount: number;
+  currentP75: number | null;
+  currentSampleCount: number;
+}
+
+interface IncidentBreakdown {
+  byDevice: BreakdownRow[];
+  byConnection: BreakdownRow[];
+}
+
+const BreakdownRowType = builder.objectRef<BreakdownRow>("BreakdownRow").implement({
+  description: "One device class or connection type, measured in both evidence windows.",
+  fields: (t) => ({
+    value: t.exposeString("value", { description: "Display value of the dimension, e.g. MOBILE or FOUR_G." }),
+    baselineP75: t.exposeFloat("baselineP75", { nullable: true }),
+    baselineSampleCount: t.exposeInt("baselineSampleCount"),
+    currentP75: t.exposeFloat("currentP75", { nullable: true }),
+    currentSampleCount: t.exposeInt("currentSampleCount"),
+  }),
+});
+
+const IncidentBreakdownType = builder.objectRef<IncidentBreakdown>("IncidentBreakdown").implement({
+  fields: (t) => ({
+    byDevice: t.field({ type: [BreakdownRowType], resolve: (breakdown) => breakdown.byDevice }),
+    byConnection: t.field({ type: [BreakdownRowType], resolve: (breakdown) => breakdown.byConnection }),
+  }),
+});
+
+/** Wire spelling for each group, then the most-affected first: current sample count descending, then value. */
+const toBreakdownRows = (
+  groups: BreakdownGroup<string>[],
+  values: Readonly<Record<string, { readonly value: string }>>,
+): BreakdownRow[] =>
+  groups
+    .map((group) => ({ ...group, value: enumNameOf(values, group.value) }))
+    .sort((a, b) => b.currentSampleCount - a.currentSampleCount || a.value.localeCompare(b.value));
 
 export const IncidentType = builder.objectRef<IncidentRow>("Incident").implement({
   description: "Something the detector decided a human should look at: a vitals regression or a failing health check.",
@@ -110,6 +155,22 @@ export const IncidentType = builder.objectRef<IncidentRow>("Incident").implement
       nullable: true,
       description: "Set when `source` is HEALTH_CHECK.",
       resolve: (incident) => (incident.evidence.kind === "health-check" ? incident.evidence : null),
+    }),
+    breakdown: t.field({
+      type: IncidentBreakdownType,
+      nullable: true,
+      description:
+        "Per device class and connection type, over the two windows frozen in the evidence; null for health-check incidents. Two statements per incident, so ask for it on the detail view, not the list.",
+      resolve: (incident, _args, ctx) => {
+        if (incident.evidence.kind !== "web-vitals") {
+          return null;
+        }
+        const data = loadIncidentBreakdown({ db: ctx.db, siteId: incident.siteId, evidence: incident.evidence });
+        return {
+          byDevice: toBreakdownRows(data.byDevice, DEVICE_CLASS_ENUM_VALUES),
+          byConnection: toBreakdownRows(data.byConnection, CONNECTION_TYPE_ENUM_VALUES),
+        };
+      },
     }),
     steps: t.field({
       type: [IncidentStepType],
