@@ -240,6 +240,20 @@ is one shell rather than streamed sections. `PreloadQuery` stays exported
 from `src/app/apollo/rsc-client.ts` for per-section streaming where a
 fallback is acceptable.
 
+### Agents outside the app: a triage worker, not model calls in Next.js
+Decided 2026-10-14, before M12 to M14 are built.
+The triage agents need minutes per incident, a shell and git for the fix step, and a key that must not sit behind a public demo URL.
+Options: model calls inside Next.js route handlers (serverless timeouts, the key behind the demo, no repo access); a worker container we own on the Claude Agent SDK; Managed Agents (Anthropic hosts the loop and a sandbox); GitHub Actions as the runtime (native repo access, but coupled to GitHub).
+Choice: the worker container, `services/triage-worker`, with ECS as the hosting target and `docker compose` locally.
+It talks to the dashboard only through GraphQL with a service token, and the MCP tool layer is harness-neutral so Managed Agents stays a later swap.
+Tradeoff: two deployables and a token to manage, and the public demo shows a recorded run rather than a live worker.
+
+### Health checks are pushed, with one pull adapter
+The agents should serve any application, not only this one.
+Options: a pull connector per application (an adapter to maintain for every shape of health endpoint); a push endpoint the application or its existing monitoring posts to; both.
+Choice: `POST /api/checks`, validated and idempotent like `/api/collect`, plus one generic HTTP probe (`npm run checks:probe`) that turns any `/healthz`-style endpoint into a push, which proves the boundary against an application we do not control.
+Tradeoff: an application has to send something, but there is exactly one contract to document and test.
+
 ## Server/client boundary
 
 The overview is a Server Component tree with `"use client"` only at the
@@ -339,13 +353,17 @@ npm run codegen       # after changing the schema or a client query: schema.grap
 
 The database lives at `.data/vitals.db` (override with `VITALS_DB_PATH`).
 
-## Scope (v1 guardrails)
+## Scope (guardrails)
 
-Core Web Vitals (LCP, CLS, INP, TTFB, FCP) by page, device class, and
-connection; a session view; percentile aggregates (p75 first, per web.dev
-thresholds). **Deliberately excluded:** error tracking, session replay, alerts,
-multi-tenant auth, sampling strategies beyond a simple rate. Ship small,
-polished, instrumented with itself.
+Two tiers, amended 2026-10-14.
+
+**Tier one, the RUM kit (built, M1 to M10):** Core Web Vitals (LCP, CLS, INP, TTFB, FCP) by page, device class, and connection; a session view; percentile aggregates (p75 first, per web.dev thresholds).
+**Planned for M12 and M13:** health checks any application can push, deterministic incident detection, and a human approve/dismiss gate, so the dashboard is the one place an on-call engineer looks.
+
+**Tier two, the triage agents (planned, M14):** four single-responsibility agents (summarize, propose a fix, review, open the PR) running as a separate worker container that reads incidents over MCP and writes each step back as evidence.
+The dashboard never calls a model, and no agent action leaves the repo before a human approves.
+
+**Deliberately excluded:** error tracking, session replay, paging and notification channels (detection yes, paging no), multi-tenant auth, AI features inside the dashboard itself, sampling strategies beyond a simple rate.
 
 ## Docs
 
@@ -357,3 +375,4 @@ polished, instrumented with itself.
 ## Roadmap
 
 See [PLAN.md](./PLAN.md) — the working milestone plan this repo is built from.
+Next up: M12 incidents and health checks, M13 the MCP boundary, M14 the triage worker, then M11 public polish.

@@ -5,6 +5,7 @@
 > For the deep version of any section, follow the link to its learning chapter.
 
 Current state: **M9 complete, M8 and M10 code complete** (M3, the browser library, is Lakhte's and in progress; the M8 self-measurement panel and the M10 deploy wait on it and on his accounts).
+Plan amended 2026-10-14: M12 to M14 add incidents, health checks, the MCP boundary, and the triage worker; none of that exists in code yet, see PLAN.md.
 Data model, migrations, seeds, ingest endpoint, analytics API, schema snapshot, typed documents, dashboard UI with Storybook, server-rendered first paint, bundle budget, virtualised sessions table, axe and keyboard e2e, and demo mode are in place.
 
 ## The one-paragraph version
