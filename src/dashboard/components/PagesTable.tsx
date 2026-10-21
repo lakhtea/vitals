@@ -1,10 +1,13 @@
 "use client";
 
-// The per-path table: p75 per metric, sortable by any column. A client
-// component only because the sort order is local UI state; the rows arrive as
-// plain props and the comparator lives in sortPages.ts.
+// The per-path table: p75 per metric, sortable by any column, each path a
+// link into the page detail route. A client component only because the sort
+// order is local UI state; the rows arrive as plain props and the comparator
+// lives in sortPages.ts.
+import Link from "next/link";
 import { useState, type ReactElement } from "react";
 import { formatMetricValue, ratingLabel } from "@/vitals/format";
+import { pageDetailHref } from "../routes";
 import {
   PAGE_METRIC_COLUMNS,
   findPageMetric,
@@ -16,11 +19,14 @@ import {
   type PagesSortColumn,
 } from "../sortPages";
 import styles from "./PagesTable.module.css";
+import { RatingDot } from "./RatingDot";
 
 export type { PageRowData } from "../sortPages";
 
 export interface PagesTableProps {
   pages: PageRowData[];
+  /** The site the paths belong to, for the link into each page's detail route. */
+  siteId: string;
 }
 
 const DEFAULT_SORT: PageSort = { column: "pageviews", direction: "desc" };
@@ -55,7 +61,7 @@ const SortableHeader = ({
 
   return (
     <th scope="col" aria-sort={ariaSort} className={isNumeric ? styles.numeric : undefined}>
-      <button type="button" className={styles.sortButton} onClick={() => onSort(column)}>
+      <button type="button" className={styles.sortButton} data-active={isActive} onClick={() => onSort(column)}>
         {COLUMN_LABELS[column]}
         <span aria-hidden="true" className={styles.sortIcon}>
           {indicator}
@@ -79,15 +85,16 @@ const MetricCell = ({ page, name }: { page: PageRowData; name: PageMetricColumn 
   }
   return (
     <td className={styles.numeric}>
-      <span className={styles.metric} data-rating={metric.p75Rating}>
+      {/* A dot carries the rating's colour so the number itself stays in the text ink; the word is read aloud. */}
+      <span className={styles.metric}>
+        <RatingDot rating={metric.p75Rating} label={ratingLabel(metric.p75Rating)} />
         {formatMetricValue({ name, value: metric.p75 })}
       </span>
-      <span className={styles.visuallyHidden}> ({ratingLabel(metric.p75Rating)})</span>
     </td>
   );
 };
 
-export const PagesTable = ({ pages }: PagesTableProps): ReactElement => {
+export const PagesTable = ({ pages, siteId }: PagesTableProps): ReactElement => {
   const [sort, setSort] = useState<PageSort>(DEFAULT_SORT);
   const sorted = sortPages({ pages, ...sort });
   const directionLabel = sort.direction === "asc" ? "ascending" : "descending";
@@ -127,8 +134,11 @@ export const PagesTable = ({ pages }: PagesTableProps): ReactElement => {
           )}
           {sorted.map((page) => (
             <tr key={page.path}>
+              {/* The link's text is the path and nothing else, so the row header is named by the path. */}
               <th scope="row" className={styles.path} title={page.path}>
-                {page.path}
+                <Link href={pageDetailHref({ siteId, path: page.path })} className={styles.pathLink}>
+                  {page.path}
+                </Link>
               </th>
               <td className={styles.numeric}>{numberFormat.format(page.pageviewCount)}</td>
               {PAGE_METRIC_COLUMNS.map((name) => (

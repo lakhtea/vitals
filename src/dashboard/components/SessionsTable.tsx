@@ -6,10 +6,10 @@
 // rest so the scrollbar is honest. A client component only because the window
 // follows the scroll position; the rows arrive as plain props.
 import { useState, type CSSProperties, type ReactElement, type UIEvent } from "react";
-import { formatDateTime } from "../dates";
 import { dimensionLabel } from "../labels";
 import { visibleRowWindow } from "../rowWindow";
 import styles from "./SessionsTable.module.css";
+import { Timestamp } from "./Timestamp";
 
 export interface SessionRowData {
   id: string;
@@ -68,7 +68,7 @@ const SpacerRow = ({ rows }: { rows: number }): ReactElement => (
 const SessionRow = ({ session, rowIndex }: { session: SessionRowData; rowIndex: number }): ReactElement => (
   <tr aria-rowindex={rowIndex}>
     <td className={styles.started}>
-      <time dateTime={session.startedAt}>{formatDateTime(session.startedAt)}</time>
+      <Timestamp value={session.startedAt} />
     </td>
     <td>{dimensionLabel(session.deviceClass)}</td>
     <td>{dimensionLabel(session.connectionType)}</td>

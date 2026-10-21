@@ -5,6 +5,7 @@ import { CHECK_STATUSES } from "@/checks/status";
 import { FILE_ACTIONS, FIX_AUTHORS } from "@/incidents/fix";
 import { INCIDENT_SOURCES, INCIDENT_STATUSES, STEP_ROLES, STEP_STATUSES } from "@/incidents/vocabulary";
 import { METRIC_NAMES } from "@/vitals/metrics";
+import { SERIES_BUCKETS } from "@/vitals/series";
 import { builder } from "./builder";
 
 export const MetricNameEnum = builder.enumType("MetricName", { values: METRIC_NAMES });
@@ -51,6 +52,11 @@ export const enumNameOf = (
  */
 const toEnumValues = <Value extends string>(values: readonly Value[]): Record<string, { value: Value }> =>
   Object.fromEntries(values.map((value) => [value.toUpperCase().replaceAll("-", "_"), { value }]));
+
+export const SeriesBucketEnum = builder.enumType("SeriesBucket", {
+  description: "How wide each point of a time series is.",
+  values: toEnumValues(SERIES_BUCKETS),
+});
 
 export const CheckStatusEnum = builder.enumType("CheckStatus", {
   description: "What an application reported about one of its checks.",

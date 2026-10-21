@@ -22,6 +22,13 @@
       "when": 1792037649649,
       "tag": "0002_fix_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792594303270,
+      "tag": "0003_pageviews_session_path_index",
+      "breakpoints": true
     }
   ]
 }

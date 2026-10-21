@@ -1,0 +1,67 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+
+.scroller {
+  composes: scroller from "./table.module.css";
+}
+
+.table {
+  composes: table from "./table.module.css";
+  min-width: 34rem;
+}
+
+.valueColumn {
+  width: 8rem;
+}
+
+.metricColumn {
+  width: 5.5rem;
+}
+
+.samplesColumn {
+  width: 5.5rem;
+}
+
+.numeric {
+  composes: numeric from "./table.module.css";
+}
+
+.table .numeric {
+  white-space: nowrap;
+}
+
+.rowLabel {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.missing {
+  color: var(--muted-faint);
+}
+
+.empty {
+  composes: well from "./shared.module.css";
+}
+
+.visuallyHidden {
+  composes: visuallyHidden from "./shared.module.css";
+}

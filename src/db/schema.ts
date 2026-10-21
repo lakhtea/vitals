@@ -60,7 +60,12 @@ export const pageviews = sqliteTable(
     startedAt: integer("started_at").notNull(),
   },
   (table) => [
-    index("pageviews_session_idx").on(table.sessionId),
+    // (session_id, path), not session_id alone: Page.sessions asks "did this
+    // session visit this path" once per candidate session, and without the
+    // path in the index SQLite answers it by walking every pageview of the
+    // path (pageviews_path_idx) per session. The prefix still serves the
+    // per-session pageview lookup.
+    index("pageviews_session_path_idx").on(table.sessionId, table.path),
     index("pageviews_path_idx").on(table.path),
   ],
 );

@@ -73,16 +73,16 @@ const dashboardHighlightStyle = HighlightStyle.define(
 const dashboardTheme = EditorView.theme({
   "&": {
     color: "var(--foreground)",
-    backgroundColor: "var(--background)",
-    fontSize: "0.8125rem",
+    backgroundColor: "var(--surface)",
+    fontSize: "var(--text-sm)",
   },
   "&.cm-focused": {
-    outline: "2px solid var(--foreground)",
+    outline: "2px solid var(--accent)",
     outlineOffset: "2px",
   },
   ".cm-scroller": {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    lineHeight: "1.25rem",
+    fontFamily: "var(--font-mono)",
+    lineHeight: "1.375rem",
   },
   // The editor's outline above already shows focus; a second ring on the content would double it.
   ".cm-content:focus-visible": {
@@ -96,12 +96,12 @@ const dashboardTheme = EditorView.theme({
   },
   ".cm-gutters": {
     color: "var(--muted)",
-    backgroundColor: "var(--surface)",
+    backgroundColor: "var(--surface-sunken)",
     borderRight: "1px solid var(--border)",
   },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
     {
-      backgroundColor: "color-mix(in srgb, var(--foreground) 20%, transparent)",
+      backgroundColor: "var(--accent-soft)",
     },
   "&.cm-focused .cm-matchingBracket": {
     backgroundColor: "color-mix(in srgb, var(--rating-good) 25%, transparent)",

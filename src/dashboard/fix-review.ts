@@ -84,6 +84,22 @@ export const parseUnifiedDiff = (diff: string): DiffLine[] => {
   return lines;
 };
 
+export interface DiffLineCounts {
+  added: number;
+  removed: number;
+}
+
+/** How many lines a file's diff adds and removes, for the "+12 -3" beside its path. */
+export const countDiffLines = (diff: string): DiffLineCounts =>
+  parseUnifiedDiff(diff).reduce(
+    (counts, line) => {
+      if (line.kind === "added") return { ...counts, added: counts.added + 1 };
+      if (line.kind === "removed") return { ...counts, removed: counts.removed + 1 };
+      return counts;
+    },
+    { added: 0, removed: 0 },
+  );
+
 const FILE_ACTION_LABELS: Record<FileActionName, string> = {
   add: "Added",
   modify: "Modified",

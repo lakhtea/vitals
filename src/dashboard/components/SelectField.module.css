@@ -1,0 +1,52 @@
+/* May shrink to the select's minimum width, so a long site name never pushes the brand out of the toolbar. */
+.field {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-xs);
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  /* --muted, not --muted-faint: the label sits on the translucent toolbar, and stays over 4.5:1 with any ink bleeding through. */
+  color: var(--muted);
+}
+
+/* The native select with the native chevron dropped for one drawn in the muted ink, so it matches both modes. */
+.select {
+  width: 100%;
+  min-width: 9.5rem;
+  height: 2.125rem;
+  padding: 0 var(--space-8) 0 var(--space-3);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.1rem) 55%,
+    calc(100% - 0.8rem) 55%;
+  background-size: 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-base);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.select:hover {
+  border-color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .select {
+    min-width: 8.5rem;
+  }
+}

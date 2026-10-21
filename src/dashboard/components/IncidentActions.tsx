@@ -72,7 +72,7 @@ export const IncidentActions = ({ status, onDecide, busy, error }: IncidentActio
           <button
             key={decision}
             type="button"
-            className={decision === "approved" ? styles.primary : styles.secondary}
+            className={decision === "approved" ? styles.primary : styles.dismiss}
             disabled={busy}
             onClick={() => onDecide(decision, note.trim())}
           >
@@ -81,7 +81,7 @@ export const IncidentActions = ({ status, onDecide, busy, error }: IncidentActio
         ))}
         {busy && (
           <p role="status" className={styles.status}>
-            Saving your decision...
+            Saving your decision…
           </p>
         )}
       </div>

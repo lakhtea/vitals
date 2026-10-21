@@ -1,34 +1,31 @@
 "use client";
 
 // The interactive dashboard: owns which site and which filters are chosen and
-// renders the cards, incidents, health checks, and tables. Its first render shows the result the Server
-// Component already resolved, so server HTML and hydration are identical and
-// no request is made; only a changed site or filter queries /api/graphql.
+// lays out the toolbar, the attention strip, the cards, the trend, and the
+// sections under them. Its first render shows the result the Server Component
+// already resolved, so server HTML and hydration are identical and no request
+// is made; only a changed site or filter queries /api/graphql.
 import { useQuery } from "@apollo/client/react";
 import { useId, useState, type ReactElement } from "react";
-import type { DashboardQuery } from "@/graphql/generated/graphql";
-import { METRIC_NAMES } from "@/vitals/metrics";
-import {
-  toCheckStatus,
-  toIncidentEvidence,
-  toIncidentSource,
-  toIncidentStatus,
-  toMetricName,
-  toMetricRating,
-} from "../adapters";
-import { DEFAULT_FILTERS, isDefaultFilters, toTrafficFilter, type DashboardFilters } from "../filters";
-import { describeEvidence, incidentTitle } from "../incidents";
+import { summarizeAttention } from "../attention";
+import { DEFAULT_FILTERS, isDefaultFilters, toSeriesBucket, toTrafficFilter, type DashboardFilters } from "../filters";
+import { toOverviewModel, type DashboardSite } from "../overviewModel";
 import { DASHBOARD } from "../queries";
-import { DashboardHeader } from "./DashboardHeader";
+import { AttentionStrip } from "./AttentionStrip";
+import { Brand } from "./Brand";
 import styles from "./DashboardView.module.css";
 import { FilterBar } from "./FilterBar";
-import { HealthPanel, type HealthCheckData } from "./HealthPanel";
-import { IncidentsTable, type IncidentRowData } from "./IncidentsTable";
+import { HealthPanel } from "./HealthPanel";
+import { IncidentsTable } from "./IncidentsTable";
 import { MetricCard } from "./MetricCard";
+import { MetricTrend } from "./MetricTrend";
 import { PagesTable } from "./PagesTable";
+import { SectionHeader } from "./SectionHeader";
+import { SelectField } from "./SelectField";
 import { SessionsTable } from "./SessionsTable";
+import { Toolbar, ToolbarStatus } from "./Toolbar";
 
-export type DashboardSite = NonNullable<DashboardQuery["site"]>;
+export type { DashboardSite } from "../overviewModel";
 
 export interface SiteOption {
   id: string;
@@ -47,7 +44,9 @@ export interface DashboardViewProps {
 const SESSIONS_SHOWN = 50;
 
 export const DashboardView = ({ sites, initialSite, asOf }: DashboardViewProps): ReactElement => {
-  const siteSelectId = useId();
+  const id = useId();
+  const siteSelectId = `${id}-site`;
+  const cardsHeadingId = `${id}-cards`;
   const [siteId, setSiteId] = useState(initialSite.id);
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
 
@@ -55,7 +54,7 @@ export const DashboardView = ({ sites, initialSite, asOf }: DashboardViewProps):
   // would be a wasted request. Any other site or filter is a client query.
   const isInitialView = siteId === initialSite.id && isDefaultFilters(filters);
   const { data, loading, error } = useQuery(DASHBOARD, {
-    variables: { siteId, filter: toTrafficFilter({ filters, now: asOf }) },
+    variables: { siteId, filter: toTrafficFilter({ filters, now: asOf }), bucket: toSeriesBucket(filters.range) },
     skip: isInitialView,
   });
 
@@ -90,108 +89,58 @@ export const DashboardView = ({ sites, initialSite, asOf }: DashboardViewProps):
     }
     return null;
   };
-
-  const cards = METRIC_NAMES.map((name) => {
-    const summary = site?.metrics.find((metric) => toMetricName(metric.name) === name);
-    return {
-      name,
-      p75: summary?.p75 ?? null,
-      rating: summary ? toMetricRating(summary.p75Rating) : null,
-      sampleCount: summary?.sampleCount ?? 0,
-    };
-  });
-
-  const pages = (site?.pages ?? []).map((page) => ({
-    path: page.path,
-    pageviewCount: page.pageviewCount,
-    metrics: page.metrics.map((metric) => ({
-      name: toMetricName(metric.name),
-      p75: metric.p75,
-      p75Rating: toMetricRating(metric.p75Rating),
-    })),
-  }));
-
-  // Incidents and checks are site state, not traffic: the filters do not narrow them.
-  const incidents = (site?.incidents ?? []).map((incident): IncidentRowData => {
-    const source = toIncidentSource(incident.source);
-    const metric = incident.metric === null ? null : toMetricName(incident.metric);
-    const evidence = toIncidentEvidence(incident);
-    return {
-      id: incident.id,
-      source,
-      subject: incident.subject,
-      metric,
-      status: toIncidentStatus(incident.status),
-      detectedAt: incident.detectedAt,
-      title: incidentTitle({ source, subject: incident.subject, metric, evidence }),
-      headline: describeEvidence(evidence),
-    };
-  });
-
-  const checks = (site?.checks ?? []).map(
-    (check): HealthCheckData => ({
-      checkId: check.checkId,
-      name: check.name,
-      status: toCheckStatus(check.status),
-      value: check.value,
-      unit: check.unit,
-      observedAt: check.observedAt,
-      detail: check.detail,
-    }),
-  );
+  const status = resolveStatus();
+  const model = site === null ? null : toOverviewModel(site);
 
   return (
     <main className={styles.page}>
-      <DashboardHeader>
-        {/* Explicit association: a select nested inside its label would be named "Site" plus its own value. */}
-        <div className={styles.siteField}>
-          <label htmlFor={siteSelectId}>Site</label>
-          <select
-            id={siteSelectId}
-            className={styles.siteSelect}
-            value={siteId}
-            onChange={(event) => setSiteId(event.target.value)}
-          >
-            {sites.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.name}
-              </option>
-            ))}
-          </select>
+      <Toolbar brand={<Brand />} secondRow={<FilterBar value={filters} onChange={setFilters} />}>
+        <ToolbarStatus status={status} tone={error === undefined ? "neutral" : "poor"} />
+        <SelectField id={siteSelectId} label="Site" value={siteId} onChange={(event) => setSiteId(event.target.value)}>
+          {sites.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.name}
+            </option>
+          ))}
+        </SelectField>
+      </Toolbar>
+
+      {model !== null && (
+        <div className={styles.content}>
+          {/* Incidents and checks are site state, not traffic: the filters do not narrow them. */}
+          <AttentionStrip summary={summarizeAttention({ incidents: model.incidents, checks: model.checks })} />
+
+          {/* A real level-2 heading, hidden, so the cards' h3s have a parent in the outline. */}
+          <section aria-labelledby={cardsHeadingId}>
+            <h2 id={cardsHeadingId} className={styles.visuallyHidden}>
+              Site-wide p75 by metric
+            </h2>
+            <div className={styles.cards}>
+              {model.cards.map((card) => (
+                <MetricCard key={card.name} {...card} />
+              ))}
+            </div>
+          </section>
+
+          <MetricTrend series={model.series} />
+
+          <section id="incidents" className={styles.section}>
+            <SectionHeader title="Incidents" count={model.incidents.length} />
+            <IncidentsTable incidents={model.incidents} />
+          </section>
+
+          <HealthPanel checks={model.checks} />
+
+          <section className={styles.section}>
+            <SectionHeader title="Pages" count={model.pages.length} />
+            <PagesTable pages={model.pages} siteId={model.siteId} />
+          </section>
+
+          <section className={styles.section}>
+            <SectionHeader title="Recent sessions" description={`The last ${SESSIONS_SHOWN} sessions that match the filters.`} />
+            <SessionsTable sessions={model.sessions} />
+          </section>
         </div>
-      </DashboardHeader>
-
-      <FilterBar value={filters} onChange={setFilters} />
-
-      <p className={styles.status} role="status">
-        {resolveStatus()}
-      </p>
-
-      {site && (
-        <>
-          <section className={styles.cards} aria-label="Site-wide p75 by metric">
-            {cards.map((card) => (
-              <MetricCard key={card.name} {...card} />
-            ))}
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Incidents</h2>
-            <IncidentsTable incidents={incidents} />
-          </section>
-
-          <HealthPanel checks={checks} />
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Pages</h2>
-            <PagesTable pages={pages} />
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Recent sessions (last {SESSIONS_SHOWN})</h2>
-            <SessionsTable sessions={site.sessions} />
-          </section>
-        </>
       )}
     </main>
   );

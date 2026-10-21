@@ -3,25 +3,28 @@
 // HTML. Only the decision form is client code, and after a decision it asks
 // for this render again rather than patching the page in the browser.
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactElement } from "react";
 import { query } from "@/app/apollo/rsc-client";
 import { toFixHistory, toFixRevisionData, toIncidentDetail } from "@/dashboard/adapters";
+import { BackToOverview } from "@/dashboard/components/BackToOverview";
+import { BrandLink } from "@/dashboard/components/Brand";
+import { Callout } from "@/dashboard/components/Callout";
 import { IncidentDecision } from "@/dashboard/components/IncidentDecision";
 import { IncidentDetail } from "@/dashboard/components/IncidentDetail";
 import { IncidentFixReview } from "@/dashboard/components/IncidentFixReview";
 import styles from "@/dashboard/components/IncidentPage.module.css";
+import { SectionHeader } from "@/dashboard/components/SectionHeader";
+import { Toolbar } from "@/dashboard/components/Toolbar";
 import { incidentTitle } from "@/dashboard/incidents";
+import { SITE_TITLE } from "@/dashboard/labels";
 import { INCIDENT } from "@/dashboard/queries";
 
 interface IncidentPageProps {
   /** A Promise in this Next.js: dynamic segments resolve per request. */
   params: Promise<{ id: string }>;
 }
-
-const SITE_TITLE = "Vitals";
 
 /**
  * "LCP on /pricing - Vitals" rather than the root layout's plain "Vitals", so
@@ -52,37 +55,43 @@ export default async function IncidentPage({ params }: IncidentPageProps): Promi
   // A proposal can be edited until someone decides; after approval the pinned revision is final.
   const editable = incident.status !== "approved" && incident.status !== "dismissed" && incident.status !== "resolved";
 
+  const isAwaitingHuman = incident.status === "awaiting-human";
+  const hasApprovedRevision = found.approvedRevision !== null;
+
   return (
-    <main className={styles.page}>
-      <nav aria-label="Breadcrumb">
-        <Link href="/" className={styles.back}>
-          Back to the overview
-        </Link>
-      </nav>
-      <IncidentDetail incident={incident} />
-      {latestRevision !== null && (
-        <IncidentFixReview
-          revision={toFixRevisionData(latestRevision)}
-          history={toFixHistory(found.fixRevisions)}
-          editable={editable}
-        />
-      )}
-      <section className={styles.gate} aria-labelledby="decision-heading">
-        <h2 id="decision-heading" className={styles.gateTitle}>
-          Your decision
-        </h2>
-        {incident.status === "awaiting-human" && (
-          <p className={styles.callout}>
-            The agents have finished their steps and stopped here. Nothing leaves the repository until you approve.
-          </p>
+    <>
+      <Toolbar brand={<BrandLink />} />
+      <main className={styles.page}>
+        <BackToOverview />
+        <IncidentDetail incident={incident} />
+        {latestRevision !== null && (
+          <IncidentFixReview
+            revision={toFixRevisionData(latestRevision)}
+            history={toFixHistory(found.fixRevisions)}
+            editable={editable}
+          />
         )}
-        {found.approvedRevision !== null && (
-          <p className={styles.callout}>
-            Approved revision {found.approvedRevision.number}. That exact revision is what will become the pull request.
-          </p>
-        )}
-        <IncidentDecision incidentId={incident.id} status={incident.status} revisionId={latestRevision?.id ?? null} />
-      </section>
-    </main>
+        <section className={styles.gate} aria-labelledby="decision-heading">
+          <SectionHeader id="decision-heading" title="Your decision" />
+          {(isAwaitingHuman || hasApprovedRevision) && (
+            <div className={styles.callouts}>
+              {isAwaitingHuman && (
+                <Callout tone="waiting">
+                  The agents have finished their steps and stopped here. Nothing leaves the repository until you
+                  approve.
+                </Callout>
+              )}
+              {found.approvedRevision !== null && (
+                <Callout tone="approved">
+                  Approved revision {found.approvedRevision.number}. That exact revision is what will become the pull
+                  request.
+                </Callout>
+              )}
+            </div>
+          )}
+          <IncidentDecision incidentId={incident.id} status={incident.status} revisionId={latestRevision?.id ?? null} />
+        </section>
+      </main>
+    </>
   );
 }

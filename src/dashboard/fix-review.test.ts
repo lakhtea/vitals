@@ -2,7 +2,7 @@
 // line number, or "line 14" in the panel points at the wrong code. Also the
 // editor language a path gets, since a wrong guess silently loses highlighting.
 import { describe, expect, it } from "vitest";
-import { editorLanguageFor, parseUnifiedDiff } from "./fix-review";
+import { countDiffLines, editorLanguageFor, parseUnifiedDiff } from "./fix-review";
 
 // The shape the server returns: the `diff` package's createPatch output.
 const timeoutDiff = [
@@ -51,6 +51,16 @@ describe("parseUnifiedDiff", () => {
 
   it("returns no rows for an empty diff", () => {
     expect(parseUnifiedDiff("")).toEqual([]);
+  });
+});
+
+describe("countDiffLines", () => {
+  it("counts only the added and removed lines, not context or the hunk header", () => {
+    expect(countDiffLines(timeoutDiff)).toEqual({ added: 3, removed: 2 });
+  });
+
+  it("counts nothing for an empty diff", () => {
+    expect(countDiffLines("")).toEqual({ added: 0, removed: 0 });
   });
 });
 

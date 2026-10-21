@@ -53,8 +53,11 @@ test("filters, the pages table sort, and the next control are reachable and oper
   await expect.poll(() => distinctSessionDevices(sessionsTable)).toEqual(["Mobile"]);
 
   // Pages table: sort by LCP with Enter, twice, without losing focus or the focus ring.
-  // This hop crosses the incidents table, one Tab per incident link, and other specs open incidents of
-  // their own, so the bound grows with the table instead of being a number that only fits one run.
+  // The fixed stops on this hop: the Connection select, the attention strip's links (at most three:
+  // open incidents, failing checks, degraded checks), the trend's tablist (one stop: the tabs rove
+  // with the arrow keys), and the Path and Pageviews sort buttons, so seven at most. The hop also
+  // crosses the incidents table, one Tab per incident link, and other specs open incidents of their
+  // own, so the bound grows with the table instead of being a number that only fits one run.
   const incidentLinks = await page.getByRole("table", { name: "Incidents, newest first" }).getByRole("link").count();
   await tabUntilFocused({ page, target: lcpButton, maxTabs: MAX_TABS_BETWEEN_CONTROLS + incidentLinks });
   await expect(lcpButton).toBeFocused();

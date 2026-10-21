@@ -1,0 +1,67 @@
+/* The two forms on the incident page (the decision at the gate, the editor's
+ * save) compose these so a field, its label, the note textarea, the hint, the
+ * alert, the button row, and the status line beside it look the same. */
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-normal);
+}
+
+/* --border-control is the form-control border with 3:1 contrast; the fallback covers a tree without it. */
+.textarea {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-control, var(--border-strong));
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  border-color: var(--accent);
+}
+
+.hint {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--muted);
+}
+
+/* The alert is read in the normal colour too, so the message never depends on red. */
+.error {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--rating-poor);
+  border-radius: var(--radius-md);
+  background: var(--rating-poor-soft);
+  color: var(--rating-poor);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.status {
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--muted);
+}

@@ -1,40 +1,15 @@
 .page {
-  max-width: 1080px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 2rem 1rem 4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  composes: column from "./shared.module.css";
 }
 
-.back {
-  font-size: 0.875rem;
-  color: var(--muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.back:hover {
-  color: var(--foreground);
-}
-
-/* A heading over the form's own card, like the Evidence and Timeline sections above it; no second frame. */
+/* The decision card: a panel like the sections above it, with the callouts inside it. */
 .gate {
+  composes: panel from "./shared.module.css";
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-5);
 }
 
-/* Says the pipeline is waiting on a person; text carries the meaning, the colour only draws the eye. */
-.callout {
-  padding: 0.5rem 0.75rem;
-  border-left: 3px solid var(--rating-needs-improvement);
-  background: color-mix(in srgb, var(--rating-needs-improvement) 8%, transparent);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.gateTitle {
-  font-size: 1.05rem;
-  font-weight: 600;
+.callouts {
+  display: grid;
+  gap: var(--space-3);
 }

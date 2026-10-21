@@ -6,9 +6,10 @@ import Link from "next/link";
 import type { ReactElement } from "react";
 import type { IncidentSource, IncidentStatus } from "@/incidents/vocabulary";
 import type { MetricName } from "@/vitals/metrics";
-import { formatDateTime } from "../dates";
-import { incidentSourceLabel, incidentStatusLabel, incidentStatusTone, isoTimestamp } from "../incidents";
+import { incidentSourceLabel, incidentStatusLabel, incidentStatusTone } from "../incidents";
 import styles from "./IncidentsTable.module.css";
+import { StatusPill } from "./StatusPill";
+import { Timestamp } from "./Timestamp";
 
 export interface IncidentRowData {
   id: string;
@@ -72,12 +73,10 @@ export const IncidentsTable = ({ incidents, hrefFor = defaultHrefFor }: Incident
             </th>
             <td>{incidentSourceLabel(incident.source)}</td>
             <td>
-              <span className={styles.pill} data-tone={incidentStatusTone(incident.status) ?? "none"}>
-                {incidentStatusLabel(incident.status)}
-              </span>
+              <StatusPill tone={incidentStatusTone(incident.status)}>{incidentStatusLabel(incident.status)}</StatusPill>
             </td>
             <td className={styles.detected}>
-              <time dateTime={isoTimestamp(incident.detectedAt)}>{formatDateTime(incident.detectedAt)}</time>
+              <Timestamp value={incident.detectedAt} />
             </td>
             <td className={styles.headline} title={incident.headline}>
               {incident.headline}

@@ -1,26 +1,17 @@
 /* --row-height and max-height are set inline by the component, so the pixel
    constants the window arithmetic uses have one source of truth. */
 .scroller {
+  composes: scroller from "./table.module.css";
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
 }
 
 .table {
-  width: 100%;
+  composes: table from "./table.module.css";
   min-width: 40rem;
-  table-layout: fixed;
-  /* separate, not collapse: collapsed borders belong to the table and scroll
-     away under a sticky header; separate borders stay on the cell. */
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
 }
 
 .startedColumn {
-  width: 8rem;
+  width: 9.5rem;
 }
 
 .dimensionColumn {
@@ -31,20 +22,11 @@
   width: 9rem;
 }
 
-.table th,
-.table td {
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-
+/* The header stays put while the windowed body scrolls under it. */
 .table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--surface);
-  font-weight: 600;
-  color: var(--muted);
 }
 
 /* Every body row is exactly --row-height tall (box-sizing is border-box
@@ -57,16 +39,13 @@
   white-space: nowrap;
 }
 
-.table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
 .table tbody .spacer td {
   padding: 0;
   border: 0;
 }
 
 .started {
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -78,18 +57,18 @@
 .pages {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .pageCount {
   flex: none;
   min-width: 1.5rem;
-  padding: 0 0.375rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
   text-align: center;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -97,27 +76,16 @@
 .trail {
   min-width: 0;
   color: var(--muted);
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.8125rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.table .empty {
-  padding: 1.5rem 0.75rem;
-  text-align: center;
-  color: var(--muted);
+.empty {
+  composes: empty from "./table.module.css";
 }
 
 .visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
+  composes: visuallyHidden from "./shared.module.css";
 }

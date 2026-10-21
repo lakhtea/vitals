@@ -12,14 +12,17 @@ export interface PageAggregate {
   eventCount: number;
 }
 
-export const listPagesForSite = ({
+const aggregatePages = ({
   db,
   siteId,
   filter,
+  path,
 }: {
   db: Db;
   siteId: string;
   filter: TrafficFilter;
+  /** Null aggregates every path; a path narrows to that one row. */
+  path: string | null;
 }): PageAggregate[] =>
   db
     .select({
@@ -35,6 +38,7 @@ export const listPagesForSite = ({
     .where(
       and(
         eq(sessions.siteId, siteId),
+        path === null ? undefined : eq(pageviews.path, path),
         ...sessionDimensionConditions(filter),
         filter.from === null ? undefined : gte(pageviews.startedAt, filter.from),
         filter.to === null ? undefined : lt(pageviews.startedAt, filter.to),
@@ -43,3 +47,26 @@ export const listPagesForSite = ({
     .groupBy(sessions.siteId, pageviews.path)
     .orderBy(desc(countDistinct(pageviews.id)), pageviews.path)
     .all();
+
+export const listPagesForSite = ({
+  db,
+  siteId,
+  filter,
+}: {
+  db: Db;
+  siteId: string;
+  filter: TrafficFilter;
+}): PageAggregate[] => aggregatePages({ db, siteId, filter, path: null });
+
+/** The same row `listPagesForSite` would produce for this path, or null when no pageview matches. */
+export const getPageForSite = ({
+  db,
+  siteId,
+  path,
+  filter,
+}: {
+  db: Db;
+  siteId: string;
+  path: string;
+  filter: TrafficFilter;
+}): PageAggregate | null => aggregatePages({ db, siteId, filter, path })[0] ?? null;

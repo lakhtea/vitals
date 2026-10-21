@@ -26,7 +26,8 @@ Since M14 an agent's proposed change is shown on the incident page as a diff; a 
 │   │   ├── api/graphql/      GraphQL endpoint (Yoga)
 │   │   ├── api/collect/      ingest endpoint (two-line glue over src/collect)
 │   │   ├── api/checks/       health-check endpoint, write-key protected (glue over src/checks)
-│   │   ├── incidents/[id]/   the incident page: Server Component resolves one incident, IncidentView hydrates the decision form
+│   │   ├── incidents/[id]/   the incident page: Server Component resolves one incident, IncidentView hydrates the decision form; not-found.tsx
+│   │   ├── sites/[siteId]/pages/[[...path]]/   the page detail: one path's cards, trend, breakdowns, sessions; filters in the URL (M16)
 │   │   ├── layout.tsx        HTML shell, wraps pages in ApolloWrapper
 │   │   ├── apollo/           Apollo <-> Next.js integration: browser wrapper, RSC client (SchemaLink)
 │   │   ├── DemoBanner.tsx    one-line banner, rendered only when VITALS_DEMO_MODE=1
@@ -34,25 +35,29 @@ Since M14 an agent's proposed change is shown on the incident page as a diff; a 
 │   ├── graphql/
 │   │   ├── builder.ts        the Pothos builder (plugins, scalar types)
 │   │   ├── scalars.ts        DateTime
-│   │   ├── enums.ts          MetricName, MetricRating, DeviceClass, ConnectionType
-│   │   ├── types/            MetricSummary, Session + Pageview (loadableList relation), Check, Incident + evidence + steps
+│   │   ├── enums.ts          MetricName, MetricRating, DeviceClass, ConnectionType, SeriesBucket
+│   │   ├── types/            MetricSummary, Session + Pageview (loadableList relation), Check, Incident + evidence + steps, MetricSeries, PageBreakdown
 │   │   ├── loaders/          batch functions DataLoader calls (Page.metrics)
 │   │   ├── schema.ts         Page, Site, root queries, the decision and detection mutations, toSchema()
 │   │   ├── generated/        GraphQL Codegen output: graphql() + TypedDocumentNodes (committed, never edited)
-│   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins)
+│   │   └── *.test.ts         schema + metrics tests (percentiles, query-cost pins), page-detail (series buckets, page fields)
 │   ├── collect/              ingest: zod payload contract, persistence, HTTP handler, demo rate limiter + tests
 │   ├── auth/                 bearer-token parsing and constant-time comparison, shared by /api/checks and the service token
 │   ├── checks/               health checks: status vocabulary, zod payload, persistence, write-key HTTP handler, the HTTP probe + tests
 │   ├── incidents/            vocabulary (statuses, transitions, roles), evidence shapes, the pure detector, detectIncidents, fix revision rules, unified diffs + tests
 │   ├── demo/                 the flag-gated regression (VITALS_DEMO_REGRESSION=1) the seeded proposed fix targets
 │   ├── config/               demo-mode flag
-│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, sortPages, rowWindow, chartScale, labels, adapters, dates, incidents (labels + evidence text)
-│   │   └── components/DashboardView.tsx   "use client": site + filter state, useQuery on change only
-│   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions, formatting
+│   ├── dashboard/            UI feature: components/ (+ stories, CSS modules), queries.ts, filters, routes (every URL), pageDetail (URL -> filters), overviewModel (query result -> props), attention (what is wrong, in words), sortPages, rowWindow, chartScale, labels, adapters, dates, incidents, fix-review
+│   │   ├── components/DashboardView.tsx   "use client": site + filter state, useQuery on change only
+│   │   ├── components/AttentionStrip, Brand, SelectField, SectionHeader, EmptyState   the overview's chrome, reused by the other routes
+│   │   ├── components/Toolbar, Sparkline, MetricTrend, StatusPill, Callout, Timestamp, BackToOverview   shared by every route
+│   │   ├── components/VitalsComparison, StepIcon, FixReview, DiffView   the incident page
+│   │   └── components/PageDetailView, PageDetailHeader, PageFilters, BreakdownTable, PageDetailEmptyState   the page detail
+│   ├── vitals/               domain vocabulary: metric names, thresholds, ratings, dimensions, series buckets, formatting
 │   └── db/
 │       ├── schema.ts         seven tables: sites, sessions, pageviews, metric_events + checks, incidents, incident_steps
 │       ├── index.ts          open SQLite, run migrations, makeDb / getDb
-│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), sessions, checks, incidents, steps, breakdown, fix revisions
+│       ├── queries/          SQL that resolvers call: pages, metrics (window-function percentiles), series (p75 per bucket), sessions, checks, incidents, steps, breakdown (incident + page), fix revisions
 │       ├── query-counter.ts  counts statements; behind every README query number
 │       ├── synthetic/        deterministic fake-traffic generator, the /pricing regression fixture, the health-check fixture
 │       └── seed.ts           idempotent demo seed + stress seed (CLI: scripts/seed-db.ts)
@@ -71,6 +76,7 @@ Since M14 an agent's proposed change is shown on the incident page as a diff; a 
 ├── e2e/                      Playwright specs
 ├── docs/
 │   ├── TOUR.md               this file
+│   ├── screenshots/          before and after the M16 design pass
 │   ├── NEEDS-LAKHTE.md       everything only the owner can do (accounts, pushes, deploys)
 │   └── learning/             one chapter per milestone + GLOSSARY.md
 ├── .github/workflows/ci.yml  lint, typecheck, unit + coverage, codegen check, Storybook tests, e2e, bundle budget
@@ -88,6 +94,11 @@ Chapter 00 walks this path step by step; chapter 01 explains the tables it reads
 
 Request -> `page.tsx` (Server Component) -> RSC Apollo client -> `SchemaLink` -> Pothos resolvers -> SQLite -> HTML with the data already in it -> `DashboardView` hydrates with the same props (no fetch) -> a filter change runs one `POST /api/graphql`.
 Chapter 07 explains RSC, hydration, and why the page awaits data instead of streaming it.
+
+## Follow a drill-down
+
+A path link in the pages table -> `routes.ts` `pageDetailHref` -> `/sites/<id>/pages/<path>?range=...` -> `sites/[siteId]/pages/[[...path]]/page.tsx` -> `pageDetail.ts` parses the search params into the same `DashboardFilters` the overview holds in state -> `PAGE_DETAIL` in-process -> complete HTML -> `PageFilters` pushes a new URL on change and the server answers again.
+Chapter 16 explains why this route keeps filters in the URL and the overview does not.
 
 ## Follow a delivery
 
@@ -129,7 +140,7 @@ All timestamps are epoch milliseconds.
 | ----- | -------- | ------------ | ------- |
 | Unit | `src/**/*.test.ts` | schema executed in-process, `:memory:` SQLite | `npm run test` |
 | Stories | `src/**/*.stories.tsx` | each story in headless Chromium: render, play function, axe | `npm run test:storybook` |
-| E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path, incidents: list, keyboard dismiss, axe, an agent walking the gate with the service token) | real dev server + Chromium, `.data/e2e.db`, seeded and detected | `npm run test:e2e` |
+| E2E | `e2e/*.spec.ts` (home, collect, ssr with JS off, a11y via axe, keyboard path, incidents: list, keyboard dismiss, axe, an agent walking the gate with the service token, fix review editing, page detail with JS off) | real dev server + Chromium, `.data/e2e.db`, seeded and detected | `npm run test:e2e` |
 
 CI runs all three plus `typecheck`, `lint`, `codegen:check`, and the bundle budget.
 The rule for what deserves a test is in TESTING_RULES.md.
@@ -168,6 +179,7 @@ npm run check:bundle     # after npm run build: First Load JS vs the committed b
 - [12 - Incidents and health checks](learning/12-incidents-and-health-checks.md): detection as statistics, the incident state machine, push-first checks and the write key, the first detail route.
 - [13 - Agent connection](learning/13-agent-connection.md): MCP from first principles, thin tools over GraphQL, service tokens, the health probe, the breakdown.
 - [14 - Fix review](learning/14-fix-review.md): a change as base SHA plus contents, diff algorithms, CodeMirror 6, lazy loading under a route budget, immutable revisions.
+- [16 - Design pass and page detail](learning/16-design-pass.md): design tokens and scales, one series behind sparkline and chart, bucketing in SQL, filters in the URL versus in state, the catch-all route.
 - [99 - Use this repo as a template](learning/99-use-as-template.md): keep/replace lists and the order to replace things in (draft, refreshed at M11).
 - [Glossary](learning/GLOSSARY.md): every term of art, two or three sentences each.
 

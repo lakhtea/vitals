@@ -1,6 +1,6 @@
 /* The frame around CodeMirror's own element; everything inside it is styled by the editor's theme. */
 .editor {
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }

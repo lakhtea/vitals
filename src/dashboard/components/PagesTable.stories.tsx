@@ -38,6 +38,7 @@ const ALL_POOR: PageRowData[] = [
 const meta = {
   title: "Dashboard/PagesTable",
   component: PagesTable,
+  args: { siteId: "demo" },
 } satisfies Meta<typeof PagesTable>;
 
 export default meta;
@@ -52,6 +53,9 @@ export const Default: Story = {
       const [, firstBodyRow] = canvas.getAllByRole("row");
       return within(firstBodyRow).getByRole("rowheader").textContent;
     };
+
+    // Each path links into its page detail route; the link's text is the path alone.
+    await expect(canvas.getByRole("link", { name: "/pricing" })).toHaveAttribute("href", "/sites/demo/pages/pricing");
 
     await userEvent.click(canvas.getByRole("button", { name: "LCP" }));
     await expect(firstBodyRowPath()).toBe(SLOWEST_LCP_PATH);

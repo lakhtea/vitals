@@ -1,0 +1,51 @@
+.strip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.text {
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+/* The poor-tone edge as a rounded bar inside the border, so the corner radius stays clean. */
+.strip[data-tone="poor"]::before {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  left: var(--space-1);
+  width: 3px;
+  border-radius: var(--radius-full);
+  background: var(--rating-poor);
+}
+
+.strip[data-tone="poor"] .icon {
+  flex: none;
+  color: var(--rating-poor);
+}
+
+.strip[data-tone="poor"] .text {
+  font-weight: 500;
+}
+
+.link {
+  composes: inlineLink from "./shared.module.css";
+}
+
+.strip[data-tone="good"] .text {
+  color: var(--muted);
+}
+
+/* The all-clear dot wears a soft ring, so one small dot still reads at a glance. */
+.allClearDot {
+  box-shadow: 0 0 0 3px var(--rating-good-soft);
+}

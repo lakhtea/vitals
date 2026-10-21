@@ -260,9 +260,11 @@ export const VitalsOpen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("heading", { level: 1, name: "LCP on /pricing" })).toBeVisible();
-    await expect(canvas.getByRole("columnheader", { name: "Baseline" })).toBeVisible();
+    await expect(canvas.getByText("Baseline", { selector: "dt" })).toBeVisible();
     await expect(canvas.getByText("6.5 s")).toBeVisible();
     await expect(canvas.getByText("+150%")).toBeVisible();
+    // The bars are a drawing; what a screen reader gets is the two values on the metric's scale.
+    await expect(canvas.getByRole("img", { name: /good up to 2.5 s, poor above 4.0 s/ })).toBeVisible();
     await expect(canvas.getByText(/No steps yet/)).toBeVisible();
   },
 };

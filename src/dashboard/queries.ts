@@ -13,7 +13,7 @@ export const SITES = graphql(`
 `);
 
 export const DASHBOARD = graphql(`
-  query Dashboard($siteId: ID!, $filter: TrafficFilter) {
+  query Dashboard($siteId: ID!, $filter: TrafficFilter, $bucket: SeriesBucket!) {
     site(id: $siteId) {
       id
       name
@@ -22,6 +22,14 @@ export const DASHBOARD = graphql(`
         p75
         p75Rating
         sampleCount
+      }
+      series(filter: $filter, bucket: $bucket) {
+        name
+        points {
+          from
+          p75
+          sampleCount
+        }
       }
       pages(filter: $filter) {
         path
@@ -87,6 +95,64 @@ export const DASHBOARD = graphql(`
           unit
           observedAt
           detail
+        }
+      }
+    }
+  }
+`);
+
+/** Everything the page detail route shows: the page's rollup, its series, its breakdown, and who visited. */
+export const PAGE_DETAIL = graphql(`
+  query PageDetail($siteId: ID!, $path: String!, $filter: TrafficFilter, $bucket: SeriesBucket!) {
+    site(id: $siteId) {
+      id
+      name
+      page(path: $path, filter: $filter) {
+        path
+        pageviewCount
+        metrics(filter: $filter) {
+          name
+          p75
+          p75Rating
+          sampleCount
+        }
+        series(filter: $filter, bucket: $bucket) {
+          name
+          points {
+            from
+            p75
+            sampleCount
+          }
+        }
+        breakdown(filter: $filter) {
+          byDevice {
+            value
+            metrics {
+              name
+              p75
+              p75Rating
+              sampleCount
+            }
+          }
+          byConnection {
+            value
+            metrics {
+              name
+              p75
+              p75Rating
+              sampleCount
+            }
+          }
+        }
+        sessions(filter: $filter, limit: 50) {
+          id
+          startedAt
+          deviceClass
+          connectionType
+          userAgentFamily
+          pageviews {
+            path
+          }
         }
       }
     }

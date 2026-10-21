@@ -1,30 +1,116 @@
+/*
+ * The design tokens every component styles against, and the handful of
+ * element defaults. One place for colour, type, space, and radius so the
+ * overview, the incident page, and the page detail read as one product.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --surface: #fafafa;
-  --border: #d4d4d4;
-  --muted: #616161;
-  /* web.dev rating colors, dark enough to be used as text on --surface (AA). */
+  /* Type: the platform's UI face costs zero bytes and matches the OS; monospace for paths and code. */
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* A modular scale, 1.125 steps, so sizes relate instead of being picked per component. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --tracking-tight: -0.015em;
+  --tracking-wide: 0.04em;
+
+  /* Space on a 4 px grid. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  --content-width: 1120px;
+  --gutter: 1rem;
+
+  /* Surfaces, from the page down into a card and down again into a well. */
+  --background: #f7f7f5;
+  --surface: #ffffff;
+  --surface-sunken: #f1f1ee;
+  --surface-raised: #ffffff;
+  --foreground: #1a1a19;
+  --muted: #5f5e5a;
+  --muted-faint: #6f6e69; /* 4.5:1 on the sunken surface: the faintest text that still passes AA at small sizes. */
+  --border: #e3e2dd;
+  --border-strong: #c9c8c2;
+  /* The border of a control (select, input, button): 3.5:1 on --surface and 3.1:1 on --surface-sunken,
+     the 3:1 a boundary needs to count as the control's visible edge. The two above are decorative rules. */
+  --border-control: #8a8984;
+  --shadow-sm: 0 1px 2px rgb(26 26 25 / 0.06);
+  --shadow-md: 0 1px 2px rgb(26 26 25 / 0.06), 0 6px 20px -8px rgb(26 26 25 / 0.14);
+
+  /* One accent for links, the active tab, and the primary button. */
+  --accent: #2456d6;
+  --accent-contrast: #ffffff;
+  --accent-soft: #e7edfb;
+
+  /* web.dev rating colours, dark enough to be used as text on --surface (AA). */
   --rating-good: #166534;
   --rating-needs-improvement: #854d0e;
   --rating-poor: #b91c1c;
+  --rating-good-soft: #e3f3e8;
+  --rating-needs-improvement-soft: #fbf0d9;
+  --rating-poor-soft: #fde4e4;
+
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --surface: #171717;
-    --border: #2e2e2e;
-    --muted: #a3a3a3;
+    --background: #0f0f0e;
+    --surface: #171716;
+    --surface-sunken: #121211;
+    --surface-raised: #1e1e1c;
+    --foreground: #ededea;
+    --muted: #a3a29c;
+    --muted-faint: #8f8e88;
+    --border: #2a2a28;
+    --border-strong: #3d3d3a;
+    --border-control: #767570; /* 3.9:1 on --surface, 4.1:1 on --surface-sunken. */
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -8px rgb(0 0 0 / 0.6);
+
+    --accent: #7ea2f5;
+    --accent-contrast: #0f0f0e;
+    --accent-soft: #1b2745;
+
     --rating-good: #4ade80;
     --rating-needs-improvement: #fbbf24;
     --rating-poor: #f87171;
+    --rating-good-soft: #15291c;
+    --rating-needs-improvement-soft: #2f2410;
+    --rating-poor-soft: #341717;
+
+    color-scheme: dark;
   }
 }
 
 html {
   height: 100%;
+  /* The sticky toolbar covers the top of the viewport, so an anchor jump, a
+     scrollIntoView, or a focus() that scrolls must stop short of it. Its
+     tallest form, the overview's two rows, measured 153 px at 1440 and 390;
+     this clears it with room to spare on every route. */
+  scroll-padding-top: 10.75rem;
 }
 
 body {
@@ -33,15 +119,25 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
 }
 
 a {
@@ -51,12 +147,15 @@ a {
 
 /* One focus ring for every interactive element, keyboard-only. */
 :focus-visible {
-  outline: 2px solid var(--foreground);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

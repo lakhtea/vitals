@@ -2,7 +2,8 @@
   "tolerancePercent": 10,
   "measuredWith": "npm run build && npm run measure:bundle",
   "routes": {
-    "/": 689831,
-    "/incidents/[id]": 707920
+    "/": 764000,
+    "/incidents/[id]": 752740,
+    "/sites/[siteId]/pages/[[...path]]": 704154
   }
 }

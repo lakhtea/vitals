@@ -1,6 +1,6 @@
 // TimeSeriesChart across the shapes real data takes: a week of LCP crossing
 // the thresholds, a CLS series that is flat except for one spike, a dense
-// intraday series (no markers, time-of-day axis), and no data at all.
+// intraday series (no markers, time-of-day axis), a single bucket, and no data at all.
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { TimeSeriesChart, type ChartPoint } from "./TimeSeriesChart";
 
@@ -58,4 +58,9 @@ export const InpIntraday: Story = {
 
 export const Empty: Story = {
   args: { name: "LCP", points: [] },
+};
+
+/** One bucket, as a freshly instrumented site shows in its first hours: one marker and one centred date. */
+export const SinglePoint: Story = {
+  args: { name: "LCP", points: series({ values: [2410], start: WEEK_START, stepMs: MS_PER_DAY }) },
 };

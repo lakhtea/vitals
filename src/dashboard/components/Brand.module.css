@@ -1,0 +1,25 @@
+.title {
+  font-size: var(--text-xl);
+  font-weight: 650;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.link:hover {
+  color: var(--accent);
+}
+
+.tagline {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On a phone the row belongs to the title, the status, and the site picker. */
+@media (max-width: 640px) {
+  .tagline {
+    display: none;
+  }
+}

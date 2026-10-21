@@ -6,11 +6,13 @@ import { connection } from "next/server";
 import type { ReactElement } from "react";
 import { query } from "@/app/apollo/rsc-client";
 import { toMetricName, toMetricRating } from "@/dashboard/adapters";
-import { DashboardHeader } from "@/dashboard/components/DashboardHeader";
+import { Brand } from "@/dashboard/components/Brand";
 import { DashboardView, type DashboardSite, type SiteOption } from "@/dashboard/components/DashboardView";
 import styles from "@/dashboard/components/DashboardView.module.css";
+import { EmptyState } from "@/dashboard/components/EmptyState";
 import { SelfMeasurementPanel, type SelfMeasuredMetric } from "@/dashboard/components/SelfMeasurementPanel";
-import { DEFAULT_FILTERS, toTrafficFilter } from "@/dashboard/filters";
+import { Toolbar } from "@/dashboard/components/Toolbar";
+import { DEFAULT_FILTERS, toSeriesBucket, toTrafficFilter } from "@/dashboard/filters";
 import { DASHBOARD, SELF_MEASUREMENT, SITES } from "@/dashboard/queries";
 import { loadUpstreamStatus } from "@/demo/slow-upstream";
 
@@ -63,7 +65,11 @@ const loadOverview = async (): Promise<Overview> => {
 
   const dashboardResult = await query({
     query: DASHBOARD,
-    variables: { siteId: firstSite.id, filter: toTrafficFilter({ filters: DEFAULT_FILTERS, now: asOf }) },
+    variables: {
+      siteId: firstSite.id,
+      filter: toTrafficFilter({ filters: DEFAULT_FILTERS, now: asOf }),
+      bucket: toSeriesBucket(DEFAULT_FILTERS.range),
+    },
   });
   const initialSite = dashboardResult.data?.site ?? null;
   if (initialSite === null) {
@@ -74,10 +80,12 @@ const loadOverview = async (): Promise<Overview> => {
 
 const NoSitesYet = (): ReactElement => (
   <main className={styles.page}>
-    <DashboardHeader />
-    <p className={styles.status} role="status">
-      No sites yet. Run <code>npm run db:seed</code> for synthetic demo data.
-    </p>
+    <Toolbar brand={<Brand />} />
+    <div className={styles.emptyPage} role="status">
+      <EmptyState icon="sites" title="No sites yet">
+        Run <code>npm run db:seed</code> for synthetic demo data.
+      </EmptyState>
+    </div>
   </main>
 );
 

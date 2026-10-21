@@ -288,6 +288,42 @@ The repo's interaction tests live here rather than in Playwright.
 The accessibility rules engine (axe-core) that inspects rendered DOM for mechanically checkable WCAG failures.
 Run per story by the a11y addon with violations as failures, and per page by Playwright in M9.
 
+**Type scale.**
+A short list of font sizes that relate by a fixed ratio (1.125 here) instead of being chosen per component.
+Two sizes from the scale always look intentional next to each other; two arbitrary pixel values rarely do.
+
+**Surface hierarchy.**
+Background colours ordered by elevation: the page, a sunken well, a card, a raised panel.
+Nesting a lighter surface inside a darker one is how a layout shows containment without borders everywhere.
+
+**Sparkline.**
+A tiny line chart with no axes or labels, drawn inline next to the number it explains.
+It shows shape (rising, flat, spiky) rather than values; the number beside it carries the value.
+
+**Bucket (time series).**
+A fixed-width slice of time (an hour, six hours, a day) into which samples are grouped before aggregating.
+Integer division of the timestamp by the bucket width gives the bucket, which is why it is cheap in SQL.
+
+**Optional catch-all segment.**
+A Next.js route folder named `[[...path]]` that matches zero or more URL segments and hands them to the page as an array.
+`/sites/demo/pages` and `/sites/demo/pages/blog/post` both resolve to the same page, which is how a path with slashes becomes a route.
+
+**Search params as state.**
+Keeping a view's state (`?range=30d&device=MOBILE`) in the URL instead of in React state.
+The link then carries the view, the back button works, and a Server Component can render the right answer without any client code.
+
+**Scroll padding.**
+`scroll-padding-top` on the document tells the browser how much of the top edge is covered by something fixed, so anchor jumps and focus scrolling land below a sticky toolbar instead of under it.
+One rule on `html` replaces a `scroll-margin` on every target.
+
+**Covering index.**
+An index that contains every column a query reads, so SQLite answers from the index alone and never touches the table.
+`(session_id, path)` covers "does this session have a pageview on this path?", which is why the probe went from 14 ms to 0.15 ms.
+
+**Skeleton.**
+A loading placeholder shaped like the content it stands in for, so nothing moves when the data arrives.
+The one kind of loading UI a Core Web Vitals dashboard can show without causing layout shift.
+
 ## Testing and tooling
 
 **Vitest.**

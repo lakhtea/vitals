@@ -37,10 +37,11 @@ export const WithData: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("term")).toHaveLength(5);
+    // The same five cards as any site's, so one shape serves both.
+    await expect(canvas.getAllByRole("article")).toHaveLength(5);
     await expect(canvas.getByText("2.9 s")).toBeVisible();
     await expect(canvas.getByText("Needs improvement")).toBeVisible();
-    await expect(canvas.getByText("187 samples")).toBeVisible();
+    await expect(canvas.getByText(/187 samples/)).toBeVisible();
   },
 };
 
@@ -49,6 +50,6 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText(/No sessions recorded yet/)).toBeVisible();
-    await expect(canvas.queryByRole("term")).toBeNull();
+    await expect(canvas.queryByRole("article")).toBeNull();
   },
 };

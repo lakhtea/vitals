@@ -2,11 +2,12 @@
 // per-request Apollo client; DemoBanner renders only when VITALS_DEMO_MODE=1.
 import type { Metadata } from "next";
 import "./globals.css";
+import { SITE_TITLE } from "@/dashboard/labels";
 import { ApolloWrapper } from "./apollo/ApolloWrapper";
 import { DemoBanner } from "./DemoBanner";
 
 export const metadata: Metadata = {
-  title: "Vitals",
+  title: SITE_TITLE,
   description: "Core Web Vitals from real sessions, self-hosted. A GraphQL analytics dashboard.",
 };
 

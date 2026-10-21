@@ -36,6 +36,21 @@ type Grouping = { by: "site" } | { by: "path"; paths: readonly string[] | null }
 /** ceil(percent% of n) with integer arithmetic, which SQLite lacks a CEIL for; expects a `sample_count` column in scope. */
 export const nearestRank = (percent: number): SQL => sql.raw(`(sample_count * ${percent} + 99) / 100`);
 
+/**
+ * The MetricSummaryRow columns after the name, over a `ranked` CTE that carries
+ * value, rating, rank, and sample_count. Shared with the page breakdown so both
+ * produce the same row shape from the same arithmetic.
+ */
+export const summaryColumnsSql = (): SQL => sql`
+  sample_count AS sampleCount,
+  MAX(CASE WHEN rank = ${nearestRank(50)} THEN value END) AS p50,
+  MAX(CASE WHEN rank = ${nearestRank(75)} THEN value END) AS p75,
+  MAX(CASE WHEN rank = ${nearestRank(90)} THEN value END) AS p90,
+  SUM(rating = 'good') AS good,
+  SUM(rating = 'needs-improvement') AS needsImprovement,
+  SUM(rating = 'poor') AS poor
+`;
+
 const inList = (values: readonly string[]): SQL => sql.join(values.map((value) => sql`${value}`), sql`, `);
 
 const summarise = ({
@@ -81,13 +96,7 @@ const summarise = ({
       site_id AS siteId,
       path,
       name,
-      sample_count AS sampleCount,
-      MAX(CASE WHEN rank = ${nearestRank(50)} THEN value END) AS p50,
-      MAX(CASE WHEN rank = ${nearestRank(75)} THEN value END) AS p75,
-      MAX(CASE WHEN rank = ${nearestRank(90)} THEN value END) AS p90,
-      SUM(rating = 'good') AS good,
-      SUM(rating = 'needs-improvement') AS needsImprovement,
-      SUM(rating = 'poor') AS poor
+      ${summaryColumnsSql()}
     FROM ranked
     GROUP BY site_id, path, name
     ORDER BY site_id, path, name

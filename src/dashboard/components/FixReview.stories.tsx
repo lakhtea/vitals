@@ -196,7 +196,14 @@ export const ManyFiles: Story = {
     // Added and modified files can be edited; a deleted file has nothing to edit.
     await expect(canvas.getAllByRole("button", { name: /^Edit / })).toHaveLength(3);
     await expect(canvas.queryByRole("button", { name: "Edit src/demo/retry.ts" })).toBeNull();
-    await expect(canvas.getByText("Deleted")).toBeVisible();
+    // Once in the file list beside the diffs, once in the file's own heading.
+    await expect(canvas.getAllByText("Deleted")).toHaveLength(2);
+    const fileList = within(canvas.getByRole("navigation", { name: "Files in this change" }));
+    await expect(fileList.getAllByRole("link")).toHaveLength(4);
+    // Each link is a plain fragment to the file's own section, so it works before hydration and without JavaScript.
+    const href = fileList.getByRole("link", { name: /src\/demo\/fallback\.ts/ }).getAttribute("href") ?? "";
+    await expect(href).toMatch(/^#.+-file-1$/);
+    await expect(canvasElement.querySelector(`[id="${href.slice(1)}"]`)).toHaveTextContent(/src\/demo\/fallback\.ts/);
   },
 };
 

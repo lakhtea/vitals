@@ -1,7 +1,7 @@
 // The dashboard's filter state and its translation into the GraphQL
 // TrafficFilter input. The UI thinks in "last 7 days"; the API thinks in
 // absolute ISO timestamps; this module is the only place that converts.
-import type { ConnectionType, DeviceClass } from "@/graphql/generated/graphql";
+import type { ConnectionType, DeviceClass, SeriesBucket } from "@/graphql/generated/graphql";
 
 export type TimeRangeKey = "24h" | "7d" | "30d" | "all";
 
@@ -48,6 +48,16 @@ const RANGE_DURATION_MS: Record<Exclude<TimeRangeKey, "all">, number> = {
   "7d": 7 * MS_PER_DAY,
   "30d": 30 * MS_PER_DAY,
 };
+
+/** The bucket width that gives a range a readable number of points: 24 for a day, 28 for a week, 30 for a month. */
+const SERIES_BUCKET_BY_RANGE: Record<TimeRangeKey, SeriesBucket> = {
+  "24h": "HOUR",
+  "7d": "SIX_HOURS",
+  "30d": "DAY",
+  all: "DAY",
+};
+
+export const toSeriesBucket = (range: TimeRangeKey): SeriesBucket => SERIES_BUCKET_BY_RANGE[range];
 
 /** The shape of the GraphQL TrafficFilter variable, with every field present. */
 export interface TrafficFilterVariables {

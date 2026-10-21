@@ -1,0 +1,24 @@
+.dot {
+  flex: none;
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.dot[data-rating="good"] {
+  background: var(--rating-good);
+}
+
+.dot[data-rating="needs-improvement"] {
+  background: var(--rating-needs-improvement);
+}
+
+.dot[data-rating="poor"] {
+  background: var(--rating-poor);
+}
+
+.visuallyHidden {
+  composes: visuallyHidden from "./shared.module.css";
+}

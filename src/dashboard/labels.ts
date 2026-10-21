@@ -1,7 +1,11 @@
-// Display names for the GraphQL dimension enums ("SLOW_2G" reads as "Slow 2G").
-// Keyed by the generated enum types so a new schema value is a typecheck
-// failure here rather than a raw constant leaking into the UI.
+// Display names: the product's own, and the GraphQL dimension enums ("SLOW_2G"
+// reads as "Slow 2G"). The enum maps are keyed by the generated types so a new
+// schema value is a typecheck failure here rather than a raw constant leaking
+// into the UI.
 import type { ConnectionType, DeviceClass } from "@/graphql/generated/graphql";
+
+/** The product's name, as the brand shows it and as every document title ends. */
+export const SITE_TITLE = "Vitals";
 
 export const DEVICE_CLASS_LABELS: Record<DeviceClass, string> = {
   DESKTOP: "Desktop",

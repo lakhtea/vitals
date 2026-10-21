@@ -1,16 +1,19 @@
 .scroller {
+  /* Contains the visually hidden column names: positioned against the viewport instead, the ones in
+     columns past the right edge would widen the whole page. */
+  position: relative;
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--background);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
 .table {
   min-width: 100%;
   border-collapse: collapse;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8125rem;
-  line-height: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.375rem;
 }
 
 /* The header names the columns for assistive technology only; it takes no visible space. */
@@ -21,22 +24,30 @@
 }
 
 .row td {
-  padding: 0 0.5rem;
+  padding: 0 var(--space-2);
   vertical-align: top;
 }
 
-/* Numbers and marks are reference, not content: selecting the diff copies only the code. */
+/*
+ * Numbers and marks are reference, not content: selecting the diff copies only the code. The gutter is
+ * a sunken column in --muted: --muted-faint is below 4.5:1 on either surface at this size.
+ */
 .number {
   min-width: 3rem;
   text-align: right;
   color: var(--muted);
+  background: var(--surface-sunken);
   font-variant-numeric: tabular-nums;
   user-select: none;
+}
+
+.number + .number {
   border-right: 1px solid var(--border);
 }
 
-.line {
+.row .line {
   width: 100%;
+  padding-left: var(--space-3);
   white-space: pre;
 }
 
@@ -52,7 +63,11 @@
 }
 
 .row[data-kind="added"] {
-  background: color-mix(in srgb, var(--rating-good) 12%, transparent);
+  background: var(--rating-good-soft);
+}
+
+.row[data-kind="added"] .number {
+  background: color-mix(in srgb, var(--rating-good-soft) 60%, var(--surface-sunken));
 }
 
 .row[data-kind="added"] .mark {
@@ -60,42 +75,38 @@
 }
 
 .row[data-kind="removed"] {
-  background: color-mix(in srgb, var(--rating-poor) 12%, transparent);
+  background: var(--rating-poor-soft);
+}
+
+.row[data-kind="removed"] .number {
+  background: color-mix(in srgb, var(--rating-poor-soft) 60%, var(--surface-sunken));
 }
 
 .row[data-kind="removed"] .mark {
   color: var(--rating-poor);
 }
 
+/* A hunk header is a sunken band across the whole width, in the gutter's colour. */
 .row[data-kind="hunk"] {
   color: var(--muted);
-  background: var(--surface);
+  background: var(--surface-sunken);
 }
 
 .row[data-kind="hunk"] td {
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+.row[data-kind="hunk"] .number {
+  border-right-color: transparent;
 }
 
 .empty {
-  padding: 0.75rem 1rem;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  color: var(--muted);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  composes: well from "./shared.module.css";
 }
 
+/* Selecting the diff must copy the code, not the spoken "added:" and "removed:" words. */
 .visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
+  composes: visuallyHidden from "./shared.module.css";
   user-select: none;
 }

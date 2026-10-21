@@ -1,9 +1,12 @@
 // The dashboard's own Core Web Vitals, all time: proof that it reports into
-// itself through the same library and endpoint as any other site. A leaf with
-// no hooks, so the Server Component can render it complete in the first HTML.
+// itself through the same library and endpoint as any other site, shown in the
+// same five cards as any site's. A leaf with no hooks, so the Server Component
+// can render it complete in the first HTML.
 import type { ReactElement } from "react";
-import { formatMetricValue, formatSampleCount, ratingLabel } from "@/vitals/format";
 import { METRIC_NAMES, type MetricName, type MetricRating } from "@/vitals/metrics";
+import { EmptyState } from "./EmptyState";
+import { MetricCard } from "./MetricCard";
+import { SectionHeader } from "./SectionHeader";
 import styles from "./SelfMeasurementPanel.module.css";
 
 export interface SelfMeasuredMetric {
@@ -20,35 +23,33 @@ export interface SelfMeasurementPanelProps {
 
 const hasSamples = (metric: SelfMeasuredMetric): boolean => metric.sampleCount > 0;
 
-const MetricCell = ({ name, metric }: { name: MetricName; metric: SelfMeasuredMetric | null }): ReactElement => (
-  <div className={styles.metric} data-rating={metric === null ? "none" : metric.rating}>
-    <dt className={styles.name}>{name}</dt>
-    <dd className={styles.value}>{metric === null ? "–" : formatMetricValue({ name, value: metric.p75 })}</dd>
-    <dd className={styles.rating}>{metric === null ? "No data" : ratingLabel(metric.rating)}</dd>
-    <dd className={styles.samples}>{formatSampleCount(metric === null ? 0 : metric.sampleCount)}</dd>
-  </div>
-);
+const SelfMeasuredCard = ({ name, metric }: { name: MetricName; metric: SelfMeasuredMetric | null }): ReactElement => {
+  if (metric === null) {
+    return <MetricCard name={name} p75={null} rating={null} sampleCount={0} />;
+  }
+  return <MetricCard name={name} p75={metric.p75} rating={metric.rating} sampleCount={metric.sampleCount} />;
+};
 
 export const SelfMeasurementPanel = ({ metrics }: SelfMeasurementPanelProps): ReactElement => {
   const isEmpty = !metrics.some(hasSamples);
 
   return (
     <section className={styles.panel}>
-      <h2 className={styles.title}>This site, measured by itself</h2>
-      <p className={styles.explanation}>
-        The dashboard reports its own Core Web Vitals through the same library and endpoint as any other site.
-      </p>
+      <SectionHeader
+        title="This site, measured by itself"
+        description="The dashboard reports its own Core Web Vitals through the same library and endpoint as any other site."
+      />
       {isEmpty ? (
-        <p className={styles.empty}>
-          No sessions recorded yet. Wire the browser library (see <code>docs/learning/03-library-brief.md</code>,
-          acceptance criterion 10) and this fills in.
-        </p>
+        <EmptyState icon="sessions" title="No sessions recorded yet">
+          Wire the browser library (<code>docs/learning/03-library-brief.md</code>, acceptance criterion 10) and this
+          fills in.
+        </EmptyState>
       ) : (
-        <dl className={styles.metrics}>
+        <div className={styles.cards}>
           {METRIC_NAMES.map((name) => (
-            <MetricCell key={name} name={name} metric={metrics.find((metric) => metric.name === name) ?? null} />
+            <SelfMeasuredCard key={name} name={name} metric={metrics.find((metric) => metric.name === name) ?? null} />
           ))}
-        </dl>
+        </div>
       )}
     </section>
   );

@@ -301,6 +301,16 @@ enum MetricRating {
   POOR
 }
 
+"""One metric's p75 over time."""
+type MetricSeries {
+  name: MetricName!
+
+  """
+  Buckets with at least one sample, oldest first; empty buckets are omitted.
+  """
+  points: [SeriesPoint!]!
+}
+
 """Percentiles and rating buckets for one metric over a set of pageviews."""
 type MetricSummary {
   buckets: RatingBuckets!
@@ -383,6 +393,11 @@ type Mutation {
 
 """Traffic for one URL path, aggregated over its pageviews."""
 type Page {
+  """
+  p75 per metric per device class and per connection type, for this path. Two statements, so ask for it on the detail view, not the list.
+  """
+  breakdown(filter: TrafficFilter): PageBreakdown!
+
   """Metric events recorded on this path."""
   eventCount: Int!
 
@@ -392,6 +407,33 @@ type Page {
   metrics(filter: TrafficFilter): [MetricSummary!]!
   pageviewCount: Int!
   path: String!
+
+  """
+  p75 per bucket for every metric on this path; one statement for all five metrics.
+  """
+  series(bucket: SeriesBucket!, filter: TrafficFilter): [MetricSeries!]!
+
+  """Sessions that visited this path, most recent first."""
+  sessions(filter: TrafficFilter, limit: Int = 50): [Session!]!
+}
+
+"""
+Per device class and per connection type; values with no samples are omitted.
+"""
+type PageBreakdown {
+  byConnection: [PageBreakdownRow!]!
+  byDevice: [PageBreakdownRow!]!
+}
+
+"""
+One device class or connection type and what the page's metrics look like for it.
+"""
+type PageBreakdownRow {
+  """One summary per metric that had samples in this slice."""
+  metrics: [MetricSummary!]!
+
+  """DeviceClass or ConnectionType value, e.g. MOBILE or FOUR_G."""
+  value: String!
 }
 
 """One navigation within a session."""
@@ -416,6 +458,21 @@ type RatingBuckets {
   good: Int!
   needsImprovement: Int!
   poor: Int!
+}
+
+"""How wide each point of a time series is."""
+enum SeriesBucket {
+  DAY
+  HOUR
+  SIX_HOURS
+}
+
+"""One bucket of a time series."""
+type SeriesPoint {
+  """Start of the bucket."""
+  from: DateTime!
+  p75: Float!
+  sampleCount: Int!
 }
 
 """One visitor's visit: who they were (coarsely) and when."""
@@ -446,8 +503,18 @@ type Site {
   metrics(filter: TrafficFilter): [MetricSummary!]!
   name: String!
 
+  """
+  One page by its exact path, or null when the site has no traffic on it under the filter.
+  """
+  page(filter: TrafficFilter, path: String!): Page
+
   """Paths with traffic, most viewed first."""
   pages(filter: TrafficFilter): [Page!]!
+
+  """
+  p75 per bucket for every metric, site-wide; one statement for all five metrics.
+  """
+  series(bucket: SeriesBucket!, filter: TrafficFilter): [MetricSeries!]!
 
   """Most recent sessions first."""
   sessions(filter: TrafficFilter, limit: Int = 50): [Session!]!

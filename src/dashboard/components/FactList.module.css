@@ -1,0 +1,44 @@
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+}
+
+.fact {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fact + .fact {
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--border);
+}
+
+.label {
+  composes: eyebrow from "./shared.module.css";
+}
+
+.value {
+  display: flex;
+  align-items: center;
+  min-height: 1.5rem;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone the row wraps, so the hairlines go and the facts take two even columns instead. */
+@media (max-width: 640px) {
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .fact + .fact {
+    padding-left: 0;
+    border-left: 0;
+  }
+}

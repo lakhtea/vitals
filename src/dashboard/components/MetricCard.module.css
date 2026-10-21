@@ -1,72 +1,75 @@
 .card {
   display: grid;
-  gap: 0.5rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
+  grid-template-rows: auto auto auto auto;
+  gap: var(--space-2);
   min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
+/* The code with the full name under it; the name may take two lines on a narrow card. */
 .heading {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  display: grid;
   min-width: 0;
 }
 
 .name {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: var(--text-md);
+  font-weight: 650;
   line-height: 1.25rem;
+  letter-spacing: var(--tracking-tight);
 }
 
 .label {
-  font-size: 0.8rem;
-  line-height: 1.25rem;
+  font-size: var(--text-xs);
+  line-height: 1rem;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* A standalone figure reads better with proportional digits; tabular is for columns. */
+/* The pill on its own line under the value, whatever its length, so five cards keep one rhythm. */
+.figure {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+/* Tabular digits so the five values share one rhythm across the row. */
 .value {
-  font-size: 2rem;
+  font-size: var(--text-2xl);
   font-weight: 600;
   line-height: 2.25rem;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
 }
 
-.pill {
-  justify-self: start;
-  padding: 0 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.25rem;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--muted) 12%, transparent);
+/* The sparkline stretches to the card's width at a fixed height and takes the rating's colour. */
+.sparkline {
+  height: 2.25rem;
+  color: var(--muted-faint);
 }
 
-.card[data-rating="good"] .pill {
+.card[data-rating="good"] .sparkline {
   color: var(--rating-good);
-  background: color-mix(in srgb, var(--rating-good) 12%, transparent);
 }
 
-.card[data-rating="needs-improvement"] .pill {
+.card[data-rating="needs-improvement"] .sparkline {
   color: var(--rating-needs-improvement);
-  background: color-mix(in srgb, var(--rating-needs-improvement) 12%, transparent);
 }
 
-.card[data-rating="poor"] .pill {
+.card[data-rating="poor"] .sparkline {
   color: var(--rating-poor);
-  background: color-mix(in srgb, var(--rating-poor) 12%, transparent);
 }
 
 .meta {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   line-height: 1.25rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+.metaPart {
+  white-space: nowrap;
 }

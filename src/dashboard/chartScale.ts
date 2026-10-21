@@ -63,6 +63,31 @@ export const buildTicks = ({ max, count }: { max: number; count: number }): numb
   return Array.from({ length: count }, (_, index) => Number((index * step).toPrecision(ROUNDING_PRECISION)));
 };
 
+/**
+ * The tick set, among `minCount` to `maxCount` ticks, whose top sits closest
+ * above `max`. A fixed count can double the axis: four ticks over a 7.6 s
+ * maximum step by 5 s and top out at 15 s, where five ticks step by 2 s and
+ * top out at 8 s. Ties go to the fewer ticks.
+ */
+export const buildFittedTicks = ({
+  max,
+  minCount,
+  maxCount,
+}: {
+  max: number;
+  minCount: number;
+  maxCount: number;
+}): number[] => {
+  const candidates = Array.from({ length: maxCount - minCount + 1 }, (_, index) =>
+    buildTicks({ max, count: minCount + index }),
+  );
+  return candidates.reduce((best, candidate) => {
+    const bestTop = best[best.length - 1] ?? 0;
+    const candidateTop = candidate[candidate.length - 1] ?? 0;
+    return candidateTop < bestTop ? candidate : best;
+  });
+};
+
 export interface SeriesSummary {
   min: number;
   max: number;

@@ -7,7 +7,7 @@ import { listLatestChecksForSite } from "@/db/queries/checks";
 import { editFixRevision, submitFixRevision } from "@/db/queries/fix-revisions";
 import { type DecisionResult, decideIncident, getIncident, listIncidentsForSite, transitionIncident } from "@/db/queries/incidents";
 import { loadSiteMetrics } from "@/db/queries/metrics";
-import { type PageAggregate, listPagesForSite } from "@/db/queries/pages";
+import { getPageForSite, type PageAggregate, listPagesForSite } from "@/db/queries/pages";
 import { listSessionsForSite } from "@/db/queries/sessions";
 import { recordStep } from "@/db/queries/steps";
 import { type IncidentRow, type SiteRow, sites } from "@/db/schema";
@@ -15,7 +15,7 @@ import { detectIncidents } from "@/incidents/detect";
 import type { HumanDecision } from "@/incidents/vocabulary";
 import { builder } from "./builder";
 import { type Context, requireService } from "./context";
-import { IncidentStatusEnum, StepRoleEnum, StepStatusEnum } from "./enums";
+import { IncidentStatusEnum, SeriesBucketEnum, StepRoleEnum, StepStatusEnum } from "./enums";
 import { FixFileEdit, FixFileInput, StepUsageInput, toStepUsage, toTrafficFilter, TrafficFilterInput } from "./inputs";
 import { batchLoadPageMetrics, pageMetricsCacheKey, type PageMetricsKey } from "./loaders/page-metrics";
 import "./scalars";
@@ -23,11 +23,23 @@ import { CheckType } from "./types/checks";
 import { FixRevisionType } from "./types/fix-revisions";
 import { DetectionResultType, IncidentStepType, IncidentType } from "./types/incidents";
 import { MetricSummaryType } from "./types/metrics";
+import { PageBreakdownType, resolvePageBreakdown } from "./types/page-breakdown";
+import { MetricSeriesType, resolveMetricSeries } from "./types/series";
 import { SessionType } from "./types/sessions";
 
 const DEFAULT_SESSIONS_LIMIT = 50;
 const MAX_SESSIONS_LIMIT = 500;
 const MAX_INCIDENTS_LIMIT = 100;
+
+/** The limit a sessions list will actually use: capped, and refused when negative. */
+const clampSessionsLimit = (limit: number | null | undefined): number => {
+  const requested = limit ?? DEFAULT_SESSIONS_LIMIT;
+  // SQLite reads a negative LIMIT as "no limit", which would silently bypass the cap.
+  if (requested < 0) {
+    throw new GraphQLError(`sessions.limit must not be negative (got ${requested})`);
+  }
+  return Math.min(requested, MAX_SESSIONS_LIMIT);
+};
 
 // A Page is an aggregate over pageviews, not a stored row, so it has no id of
 // its own; Apollo keeps it nested under its parent Site in the cache.
@@ -48,6 +60,39 @@ const PageType = builder.objectRef<PageAggregate>("Page").implement({
       load: (keys: PageMetricsKey[], ctx) => Promise.resolve(batchLoadPageMetrics({ db: ctx.db, keys })),
       resolve: (page, args) => ({ siteId: page.siteId, path: page.path, filter: toTrafficFilter(args.filter) }),
     }),
+    series: t.field({
+      type: [MetricSeriesType],
+      description: "p75 per bucket for every metric on this path; one statement for all five metrics.",
+      args: { filter: t.arg({ type: TrafficFilterInput }), bucket: t.arg({ type: SeriesBucketEnum, required: true }) },
+      resolve: (page, args, ctx) =>
+        resolveMetricSeries({
+          db: ctx.db,
+          siteId: page.siteId,
+          path: page.path,
+          filter: toTrafficFilter(args.filter),
+          bucket: args.bucket,
+        }),
+    }),
+    sessions: t.field({
+      type: [SessionType],
+      description: "Sessions that visited this path, most recent first.",
+      args: { filter: t.arg({ type: TrafficFilterInput }), limit: t.arg.int({ defaultValue: DEFAULT_SESSIONS_LIMIT }) },
+      resolve: (page, args, ctx) =>
+        listSessionsForSite({
+          db: ctx.db,
+          siteId: page.siteId,
+          path: page.path,
+          limit: clampSessionsLimit(args.limit),
+          filter: toTrafficFilter(args.filter),
+        }),
+    }),
+    breakdown: t.field({
+      type: PageBreakdownType,
+      description: "p75 per metric per device class and per connection type, for this path. Two statements, so ask for it on the detail view, not the list.",
+      args: { filter: t.arg({ type: TrafficFilterInput }) },
+      resolve: (page, args, ctx) =>
+        resolvePageBreakdown({ db: ctx.db, siteId: page.siteId, path: page.path, filter: toTrafficFilter(args.filter) }),
+    }),
   }),
 });
 
@@ -63,6 +108,27 @@ const SiteType = builder.objectRef<SiteRow>("Site").implement({
       args: { filter: t.arg({ type: TrafficFilterInput }) },
       resolve: (site, args, ctx) => listPagesForSite({ db: ctx.db, siteId: site.id, filter: toTrafficFilter(args.filter) }),
     }),
+    page: t.field({
+      type: PageType,
+      nullable: true,
+      description: "One page by its exact path, or null when the site has no traffic on it under the filter.",
+      args: { path: t.arg.string({ required: true }), filter: t.arg({ type: TrafficFilterInput }) },
+      resolve: (site, args, ctx) =>
+        getPageForSite({ db: ctx.db, siteId: site.id, path: args.path, filter: toTrafficFilter(args.filter) }),
+    }),
+    series: t.field({
+      type: [MetricSeriesType],
+      description: "p75 per bucket for every metric, site-wide; one statement for all five metrics.",
+      args: { filter: t.arg({ type: TrafficFilterInput }), bucket: t.arg({ type: SeriesBucketEnum, required: true }) },
+      resolve: (site, args, ctx) =>
+        resolveMetricSeries({
+          db: ctx.db,
+          siteId: site.id,
+          path: null,
+          filter: toTrafficFilter(args.filter),
+          bucket: args.bucket,
+        }),
+    }),
     metrics: t.field({
       type: [MetricSummaryType],
       description: "Site-wide rollup across every path.",
@@ -74,19 +140,13 @@ const SiteType = builder.objectRef<SiteRow>("Site").implement({
       type: [SessionType],
       description: "Most recent sessions first.",
       args: { filter: t.arg({ type: TrafficFilterInput }), limit: t.arg.int({ defaultValue: DEFAULT_SESSIONS_LIMIT }) },
-      resolve: (site, args, ctx) => {
-        const limit = args.limit ?? DEFAULT_SESSIONS_LIMIT;
-        // SQLite reads a negative LIMIT as "no limit", which would silently bypass the cap.
-        if (limit < 0) {
-          throw new GraphQLError(`sessions.limit must not be negative (got ${limit})`);
-        }
-        return listSessionsForSite({
+      resolve: (site, args, ctx) =>
+        listSessionsForSite({
           db: ctx.db,
           siteId: site.id,
-          limit: Math.min(limit, MAX_SESSIONS_LIMIT),
+          limit: clampSessionsLimit(args.limit),
           filter: toTrafficFilter(args.filter),
-        });
-      },
+        }),
     }),
     checks: t.field({
       type: [CheckType],

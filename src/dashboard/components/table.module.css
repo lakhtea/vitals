@@ -1,0 +1,64 @@
+/* The shell the four data tables compose: a bordered scroller, one cell
+ * padding, one uppercase muted header row on the sunken surface, no border
+ * under the last row, right-aligned figures, and the centred empty row. */
+
+/* Positioned so visually hidden text inside (caption, rating words) is clipped with the table instead of widening the page. */
+.scroller {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* separate, not collapse: collapsed borders belong to the table and scroll
+   away under a sticky header; separate borders stay on the cell. */
+.table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-base);
+  line-height: 1.25rem;
+}
+
+.table th,
+.table td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: 1px solid var(--border);
+}
+
+.table thead th {
+  padding-block: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-sunken);
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* A row that leads somewhere lights up under the pointer. */
+.table tbody tr:has(a):hover th,
+.table tbody tr:has(a):hover td {
+  background: var(--surface-sunken);
+}
+
+.table .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table .empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--muted);
+}

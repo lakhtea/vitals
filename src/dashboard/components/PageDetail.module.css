@@ -1,0 +1,67 @@
+/* The page detail route's layout: the shared column, the toolbar's site name
+ * slot, the filter row, and the header with the path as its title. */
+
+.page {
+  composes: column from "./shared.module.css";
+}
+
+/* Toolbar slots. */
+.siteName {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+
+/* Header: the path is the title, in monospace because it is a URL, not prose. */
+.header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.headerTop {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.eyebrow {
+  composes: eyebrow from "./shared.module.css";
+}
+
+.path {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  overflow-wrap: anywhere;
+}
+
+/* Sections. */
+.cards {
+  composes: cards from "./shared.module.css";
+  /* The hidden heading inside is positioned against the grid, not the page. */
+  position: relative;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Stacked, never side by side: seven columns need the full 1088 px column
+   to show without a scrollbar on a desktop; half of it cuts FCP and Samples off. */
+.breakdowns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+}
+
+.visuallyHidden {
+  composes: visuallyHidden from "./shared.module.css";
+}

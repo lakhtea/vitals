@@ -305,6 +305,22 @@ Runs anywhere a container runs; ECS is the target.
 - [ ] Chapter 14: why four narrow agents instead of one, where the human gate sits and why, how the loop is stopped from running away, how to eval a trajectory rather than a final answer, what would change under Managed Agents; written as the interview answers
 - DoD: `docker compose up` runs dashboard + worker locally; the seeded regression goes OPEN to AWAITING_HUMAN with four recorded steps; approving in the UI makes the worker open a PR from the approved revision, edited or not, against a repo Lakhte designates (or write the branch and patch locally until there is a remote); evals green in CI; chapter 14, TOUR, and glossary done.
 
+### M16 - Design pass and page detail
+Added 2026-10-20.
+The dashboard was correct and plain: same-weight grey boxes, no chart on any page, metric cards without a trend, and the pages table a dead end.
+This milestone is a design pass inside the existing constraints (CSS Modules, inline SVG, no UI or chart library) plus the one drill-down the tables were missing.
+- [x] Decision entries BEFORE building: a system font stack and a token set over a web font (zero bytes, matches the OS); the time series bucketed on the server by a `SeriesBucket` chosen from the time range (over shipping raw events to the browser); the page detail keeps its filters in the URL while the overview keeps them in client state (a page's view is a shareable link)
+- [x] Tokens in `globals.css`: type scale, 4 px spacing scale, radii, surface hierarchy (page, sunken, surface, raised), one accent, rating colours plus soft variants, light and dark; every component styles only against them
+- [x] GraphQL: `SeriesBucket` (HOUR, SIX_HOURS, DAY), `Site.series(filter, bucket)` and `Page.series(filter, bucket)` as p75 per bucket for all five metrics in one statement; `Site.page(path, filter)`, `Page.sessions(filter, limit)`, `Page.breakdown(filter)` (p75 per metric by device class and by connection type); schema snapshot and codegen updated
+- [x] Overview: sticky toolbar (brand, site, filters), an attention strip that says what is wrong before anything else (open incidents, failing checks) or that all is clear, metric cards with a sparkline of the series, one `MetricTrend` chart with the web.dev bands and a metric switcher under the cards, incidents and health checks demoted below the vitals, tables with rating dots and a path link into the page detail, designed empty and loading states; no-JS HTML still carries the aggregates
+- [x] Incident page: a header band with the status prominent, a before/after figure pair with threshold bars for vitals evidence, a vertical timeline with a role icon per step, the proposed change with a file list when there is more than one file, callouts and the decision card restyled; every role, label, and name the e2e specs use is unchanged
+- [x] Page detail route `/sites/[siteId]/pages/[[...path]]`: the path's cards with sparklines, the trend chart, breakdown tables by device and by connection, and the sessions that visited it; filters live in the URL search params and the page is server-rendered on every change; the pages table links here
+- [x] Stories for every changed and new component including empty and loading states; Storybook a11y stays green. Dark mode is verified by the committed screenshots, not by stories: the tokens switch on `prefers-color-scheme` and Storybook has no theme toggle (parked)
+- [x] Bundle budget: both baselines re-measured and the change stated in the README metrics table; the "/" budget is not allowed to grow past the +10% rule without a decision entry
+- [x] Tests per TESTING_RULES: series bucketing and the page fields (behaviour table), the page detail route renders the seeded `/pricing` page with JS disabled, axe on the page detail, the keyboard path still reaches a detail view
+- [x] Chapter 16: what a design token is and why a scale beats per-component values, how the sparkline and chart share one series and one scale module, how server-side bucketing works in SQL, why the two routes treat filter state differently, what the bundle budget saw
+- DoD: screenshots before and after committed under `docs/screenshots/`; the overview, an incident, and a page detail all look like one product in light and dark at 1440 and 390 wide; chapter 16, TOUR, and glossary done; green tree including e2e.
+
 ### M11 — Public polish (last)
 - [ ] README final pass: architecture diagram accurate (both tiers, the worker, and the MCP boundary), every Decisions entry present, metrics tables complete, no TBDs left
 - [ ] Build-story section drafted for the README — the honest account: AI-assisted by design, library human-written, everything human-reviewed and explained in docs/learning. Draft it, then get Lakhte's sign-off on the framing before it lands
@@ -342,6 +358,8 @@ Runs anywhere a container runs; ECS is the target.
 - Codegen document map per page (or the client preset's build plugin) so a
   page stops shipping other pages' GraphQL documents; M14 added 8,161 B to
   "/" this way.
+- A `data-theme` attribute alongside `prefers-color-scheme` in `globals.css` so Storybook can render every story in dark mode as a test, not just by screenshot.
+- Split the codegen document map per page (see the M16 bundle decision): "/" ships the incident and page-detail documents it never runs.
 - A seeded proposed fix that actually removes the demo regression's delay
   (today's 5 s timeout bounds a 1.5 s wait); or leave it to M15's fix agent
   as a benchmark.
@@ -573,3 +591,31 @@ decisions logged, anything blocked.
   (optional)" label (renamed), a demo SHA truncated to "seeded-" (only real
   SHAs shortened now). Honest gap, parked: the seeded fix bounds the 1.5 s
   wait rather than removing it. Final tree: see the commit.
+- 2026-10-20 21:55 to 2026-10-21 11:30 ET - M16 complete (design pass and page
+  detail), on `feat/m16-design-pass`. Built in three waves of parallel agents
+  plus a review round. Wave one: GraphQL series (p75 per bucket from one
+  window-function statement), `Site.page`, `Page.sessions`, `Page.breakdown`;
+  the incident page restyle (before/after figures with threshold bars, a
+  timeline with role icons, the file list on multi-file changes). Wave two,
+  on shared pieces written in the main session (tokens, Toolbar, Sparkline,
+  MetricTrend, routes): the overview (sticky toolbar, attention strip, cards
+  with sparklines, one trend chart with a metric switcher, rating dots, path
+  links) and the page detail route with its filters in the URL. Review: a
+  five-lens workflow (121 agents; its verification stage hit the session
+  limit, so every finding was treated as a claim and checked by hand or by
+  the fix agents). Fixed from it: paths with a trailing slash did not round
+  trip through the page detail URL (now `?path=`); Next 16 hands the page
+  percent-encoded params but `generateMetadata` decoded ones (measured,
+  documented, tested); a one-bucket series drew five overlapping labels;
+  heading order skipped h2 on two routes; anchors and focus landed under the
+  sticky toolbar (`scroll-padding-top`); form-control borders were 1.7:1
+  (new `--border-control`, 3.5:1); `Page.sessions` probed a path-only index
+  (covering index in migration 0003, 13.9 ms to 0.15 ms); and a convergence
+  pass folded the three agents' drift into shared rulesets and components
+  (`shared/table/form.module.css`, RatingDot, FactList, Icon, NotFoundView).
+  Measured: "/" 764,000 B, 0.68% past the M8 ceiling, re-baselined with a
+  Decisions entry; `/incidents/[id]` 752,740 B; the page detail 704,154 B;
+  the page detail query 8 statements. Final tree: 196 unit, 103 Storybook,
+  18 e2e. Screenshots before and after in `docs/screenshots/`. Parked:
+  a `data-theme` toggle so Storybook can test dark mode; the codegen
+  document-map split. Nothing new blocked on Lakhte.

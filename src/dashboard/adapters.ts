@@ -18,7 +18,8 @@ import type {
 } from "@/graphql/generated/graphql";
 import type { IncidentEvidence, WindowSummary } from "@/incidents/evidence";
 import type { IncidentSource, IncidentStatus, StepRole, StepStatus } from "@/incidents/vocabulary";
-import type { MetricName, MetricRating } from "@/vitals/metrics";
+import { METRIC_NAMES, type MetricName, type MetricRating } from "@/vitals/metrics";
+import type { ChartPoint } from "./chartScale";
 import type { FixRevisionData, FixRevisionSummary } from "./components/FixReview";
 import type { IncidentDetailData } from "./components/IncidentDetail";
 import type { FileActionName, FixAuthorName } from "./fix-review";
@@ -185,3 +186,60 @@ export const toFixHistory = (revisions: IncidentDetailFragment["fixRevisions"]):
     createdAt: revision.createdAt,
     summary: revision.summary,
   }));
+
+/** One metric's bucketed p75 over time, as the chart and the sparklines draw it. */
+export interface MetricSeriesData {
+  name: MetricName;
+  points: ChartPoint[];
+  /** Samples behind every point, so a sparse series can be labelled as such. */
+  sampleCount: number;
+}
+
+interface WireSeries {
+  name: GqlMetricName;
+  points: Array<{ from: string | number; p75: number; sampleCount: number }>;
+}
+
+export const toMetricSeries = (series: readonly WireSeries[]): MetricSeriesData[] =>
+  series.map((entry) => ({
+    name: toMetricName(entry.name),
+    points: entry.points.map((point) => ({ t: new Date(point.from).getTime(), value: point.p75 })),
+    sampleCount: entry.points.reduce((total, point) => total + point.sampleCount, 0),
+  }));
+
+/** What a MetricCard shows: the headline p75 with its rating, or nulls when nothing was measured. */
+export interface MetricCardData {
+  name: MetricName;
+  p75: number | null;
+  rating: MetricRating | null;
+  sampleCount: number;
+  points: ChartPoint[];
+}
+
+interface WireMetricSummary {
+  name: GqlMetricName;
+  p75: number;
+  p75Rating: GqlMetricRating;
+  sampleCount: number;
+}
+
+/**
+ * One card per metric in METRIC_NAMES order, for the overview (site-wide) and
+ * the page detail (one path) alike. A metric the window never measured still
+ * gets a card, empty, so five cards always sit in the same places.
+ */
+export const toMetricCards = ({
+  metrics,
+  series,
+}: {
+  metrics: readonly WireMetricSummary[];
+  series: readonly MetricSeriesData[];
+}): MetricCardData[] =>
+  METRIC_NAMES.map((name) => {
+    const summary = metrics.find((metric) => toMetricName(metric.name) === name);
+    const points = series.find((entry) => entry.name === name)?.points ?? [];
+    if (summary === undefined) {
+      return { name, p75: null, rating: null, sampleCount: 0, points };
+    }
+    return { name, p75: summary.p75, rating: toMetricRating(summary.p75Rating), sampleCount: summary.sampleCount, points };
+  });

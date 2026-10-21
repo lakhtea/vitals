@@ -14,6 +14,7 @@ import {
 } from "../filters";
 import { dimensionLabel } from "../labels";
 import styles from "./FilterBar.module.css";
+import { SelectField } from "./SelectField";
 
 export { DEFAULT_FILTERS } from "../filters";
 export type { DashboardFilters, TimeRangeKey } from "../filters";
@@ -27,9 +28,6 @@ const ALL_VALUE = "";
 
 export const FilterBar = ({ value, onChange }: FilterBarProps): ReactElement => {
   const id = useId();
-  const rangeId = `${id}-range`;
-  const deviceId = `${id}-device`;
-  const connectionId = `${id}-connection`;
   const isDefault = isDefaultFilters(value);
 
   const handleRangeChange = (event: ChangeEvent<HTMLSelectElement>): void => {
@@ -51,56 +49,41 @@ export const FilterBar = ({ value, onChange }: FilterBarProps): ReactElement => 
     <fieldset className={styles.bar}>
       <legend className={styles.visuallyHidden}>Filters</legend>
 
-      <div className={styles.field}>
-        <label htmlFor={rangeId} className={styles.label}>
-          Time range
-        </label>
-        <select id={rangeId} className={styles.select} value={value.range} onChange={handleRangeChange}>
-          {TIME_RANGE_OPTIONS.map((option) => (
-            <option key={option.key} value={option.key}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField id={`${id}-range`} label="Time range" value={value.range} onChange={handleRangeChange}>
+        {TIME_RANGE_OPTIONS.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </SelectField>
 
-      <div className={styles.field}>
-        <label htmlFor={deviceId} className={styles.label}>
-          Device
-        </label>
-        <select
-          id={deviceId}
-          className={styles.select}
-          value={value.deviceClass ?? ALL_VALUE}
-          onChange={handleDeviceChange}
-        >
-          <option value={ALL_VALUE}>All devices</option>
-          {DEVICE_CLASS_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {dimensionLabel(option)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        id={`${id}-device`}
+        label="Device"
+        value={value.deviceClass ?? ALL_VALUE}
+        onChange={handleDeviceChange}
+      >
+        <option value={ALL_VALUE}>All devices</option>
+        {DEVICE_CLASS_OPTIONS.map((option) => (
+          <option key={option} value={option}>
+            {dimensionLabel(option)}
+          </option>
+        ))}
+      </SelectField>
 
-      <div className={styles.field}>
-        <label htmlFor={connectionId} className={styles.label}>
-          Connection
-        </label>
-        <select
-          id={connectionId}
-          className={styles.select}
-          value={value.connectionType ?? ALL_VALUE}
-          onChange={handleConnectionChange}
-        >
-          <option value={ALL_VALUE}>All connections</option>
-          {CONNECTION_TYPE_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {dimensionLabel(option)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        id={`${id}-connection`}
+        label="Connection"
+        value={value.connectionType ?? ALL_VALUE}
+        onChange={handleConnectionChange}
+      >
+        <option value={ALL_VALUE}>All connections</option>
+        {CONNECTION_TYPE_OPTIONS.map((option) => (
+          <option key={option} value={option}>
+            {dimensionLabel(option)}
+          </option>
+        ))}
+      </SelectField>
 
       {/* Kept in the layout while hidden so the row never changes width. */}
       <button
